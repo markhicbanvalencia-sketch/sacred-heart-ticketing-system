@@ -54,17 +54,60 @@ app.use(session({
 
 // --- Globals available in every view ---
 app.use(loadUser);
+
+// Cache update check: re-check GitHub at most once per 10 minutes
+let _updateCache = { sha: null, checkedAt: 0 };
+async function getLatestSHA() {
+  const now = Date.now();
+  if (_updateCache.sha && now - _updateCache.checkedAt < 10 * 60 * 1000) return _updateCache.sha;
+  try {
+    const https = require('https');
+    const sha = await new Promise((resolve, reject) => {
+      https.get(
+        'https://api.github.com/repos/markhicbanvalencia-sketch/sacred-heart-ticketing-system/commits/main',
+        { headers: { 'User-Agent': 'SacredHeartMIS/1.0' } },
+        res => {
+          let d = '';
+          res.on('data', c => d += c);
+          res.on('end', () => {
+            try { resolve(JSON.parse(d).sha || null); } catch { resolve(null); }
+          });
+        }
+      ).on('error', () => resolve(null));
+    });
+    _updateCache = { sha, checkedAt: now };
+    return sha;
+  } catch { return null; }
+}
+
 app.use((req, res, next) => {
   res.locals.helpers = helpers;
   res.locals.siteName = helpers.getSetting('site_name') || 'MIS Ticketing System';
   res.locals.orgName = helpers.getSetting('organization_name') || '';
   res.locals.path = req.path;
   res.locals.notifCount = 0;
+  res.locals.updateAvailable = false;
   if (req.user && ['admin', 'it_staff'].includes(req.user.role)) {
     try {
       res.locals.notifCount = db.prepare(
         "SELECT COUNT(*) AS c FROM notifications WHERE user_id = ? AND is_read = 0"
       ).get(req.user.id).c;
+    } catch {}
+  }
+  if (req.user && req.user.role === 'admin') {
+    // Check for updates in background; show badge once cache is populated
+    const versionFile = require('path').join(__dirname, '..', 'data', 'version.json');
+    try {
+      const current = JSON.parse(require('fs').readFileSync(versionFile, 'utf8'));
+      // Kick off a background refresh (non-blocking)
+      getLatestSHA().then(latestSHA => {
+        if (latestSHA && current.sha && latestSHA !== current.sha) {
+          _updateCache.hasUpdate = true;
+        } else if (latestSHA && current.sha && latestSHA === current.sha) {
+          _updateCache.hasUpdate = false;
+        }
+      }).catch(() => {});
+      res.locals.updateAvailable = !!_updateCache.hasUpdate;
     } catch {}
   }
   next();
@@ -79,6 +122,7 @@ app.use('/admin', require('./routes/admin'));
 app.use('/reports', require('./routes/reports'));
 app.use('/notifications', require('./routes/notifications'));
 app.use('/events', require('./routes/events').router);
+app.use('/admin/update', require('./routes/update'));
 
 // --- 404 ---
 app.use((req, res) => {

@@ -41,6 +41,12 @@
       <a href="/admin/audit" class="<%= path.startsWith('/admin/audit') ? 'active' : '' %>">
         <span class="ico">📜</span> Audit Log
       </a>
+      <a href="/admin/update" class="<%= path.startsWith('/admin/update') ? 'active' : '' %>" style="position:relative;">
+        <span class="ico">🔄</span> System Update
+        <% if (typeof updateAvailable !== 'undefined' && updateAvailable) { %>
+          <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:#e53935;color:#fff;font-size:.7rem;font-weight:700;padding:1px 6px;border-radius:99px;line-height:1.6;">NEW</span>
+        <% } %>
+      </a>
     <% } %>
   </nav>
 

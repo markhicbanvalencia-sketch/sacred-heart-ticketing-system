@@ -51,9 +51,11 @@ Source: "..\node_modules\*"; DestDir: "{app}\node_modules"; Flags: ignoreversion
 Source: "..\package.json";   DestDir: "{app}"; Flags: ignoreversion
 
 ; --- Launcher scripts ---
-Source: "scripts\launch.bat";       DestDir: "{app}\scripts"; Flags: ignoreversion
-Source: "scripts\stop.bat";         DestDir: "{app}\scripts"; Flags: ignoreversion
-Source: "scripts\start-silent.vbs"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "scripts\launch.bat";        DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "scripts\stop.bat";          DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "scripts\start-silent.vbs";  DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "scripts\start-loop.bat";    DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "scripts\write-version.js";  DestDir: "{app}\scripts"; Flags: ignoreversion
 
 [Dirs]
 ; Grant write access to data and uploads so the app can read/write the database
@@ -76,7 +78,10 @@ Name: "{userstartup}\Sacred Heart MIS Server"; Filename: "wscript.exe"; Paramete
 ; 1. Initialise the database (first-time setup)
 Filename: "node.exe"; Parameters: "scripts\init-db.js"; WorkingDir: "{app}"; StatusMsg: "Setting up database..."; Flags: waituntilterminated runhidden
 
-; 2. Open port 3000 in Windows Firewall so LAN users can reach the server
+; 2. Write data/version.json so the update checker knows what's installed
+Filename: "node.exe"; Parameters: "scripts\write-version.js"; WorkingDir: "{app}"; StatusMsg: "Writing version info..."; Flags: waituntilterminated runhidden
+
+; 3. Open port 3000 in Windows Firewall so LAN users can reach the server
 Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""Sacred Heart MIS"" dir=in action=allow protocol=TCP localport=3000"; WorkingDir: "{app}"; StatusMsg: "Configuring firewall..."; Flags: waituntilterminated runhidden
 
 ; 3. Launch app in browser after install (optional, user can untick)

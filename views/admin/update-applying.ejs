@@ -1,0 +1,45 @@
+<%- include('../partials/header') %>
+
+<div class="card narrow-card" style="text-align:center;padding:40px 24px;">
+  <div style="font-size:3rem;margin-bottom:16px;">&#8635;</div>
+  <h2 style="margin:0 0 8px;">Applying Update...</h2>
+  <p style="color:var(--text-muted);margin:0 0 24px;">
+    Downloading latest code from GitHub and restarting the server.<br>
+    This takes about 15–30 seconds.
+  </p>
+  <div style="width:100%;background:#e0e0e0;border-radius:99px;height:6px;overflow:hidden;margin-bottom:24px;">
+    <div id="bar" style="width:0%;height:100%;background:var(--primary);border-radius:99px;transition:width .4s ease;"></div>
+  </div>
+  <p id="statusMsg" style="color:var(--text-muted);font-size:.9rem;">Waiting for server to restart...</p>
+</div>
+
+<script>
+(function () {
+  // Animate the progress bar while we wait
+  const bar = document.getElementById('bar');
+  const msg = document.getElementById('statusMsg');
+  let pct   = 0;
+  const iv  = setInterval(() => { if (pct < 85) { pct += 2; bar.style.width = pct + '%'; } }, 400);
+
+  // Poll until the server is back up, then redirect to the update page
+  function poll() {
+    fetch('/admin/update', { method: 'GET', cache: 'no-store' })
+      .then(r => {
+        if (r.ok) {
+          clearInterval(iv);
+          bar.style.width = '100%';
+          msg.textContent = 'Update complete! Redirecting...';
+          setTimeout(() => { location.href = '/admin/update'; }, 800);
+        } else {
+          setTimeout(poll, 2000);
+        }
+      })
+      .catch(() => setTimeout(poll, 2000));
+  }
+
+  // Start polling after 4 seconds (give Node time to exit and restart)
+  setTimeout(poll, 4000);
+})();
+</script>
+
+<%- include('../partials/footer') %>
