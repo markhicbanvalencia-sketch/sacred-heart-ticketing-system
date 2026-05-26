@@ -1,0 +1,23 @@
+<%- include('../partials/header') %>
+
+<div class="card">
+  <p class="muted">Last 500 events. Captures login, logout, and create/update/delete actions across the system.</p>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>When</th><th>User</th><th>Action</th><th>Detail</th><th>IP</th></tr></thead>
+      <tbody>
+        <% logs.forEach(l => { %>
+          <tr>
+            <td class="muted small"><%= helpers.fmtDate(l.created_at) %></td>
+            <td><%= l.user_name || '—' %> <% if (l.username) { %><span class="muted small">(<%= l.username %>)</span><% } %></td>
+            <td><span class="badge badge-muted"><%= l.action %></span></td>
+            <td class="muted small"><%= l.detail || '' %></td>
+            <td class="muted small"><%= l.ip || '' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

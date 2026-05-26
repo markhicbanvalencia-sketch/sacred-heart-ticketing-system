@@ -1,0 +1,83 @@
+<%- include('../partials/header') %>
+
+<div class="grid two-col">
+  <div class="card">
+    <h3>Create new user</h3>
+    <form method="POST" action="/admin/users" class="form">
+      <label>Full name <span class="req">*</span><input type="text" name="full_name" required></label>
+      <label>Username <span class="req">*</span><input type="text" name="username" required></label>
+      <label>Email<input type="email" name="email"></label>
+      <label>Password <span class="req">*</span><input type="text" name="password" required minlength="6"></label>
+      <div class="form-row">
+        <label>Role <span class="req">*</span>
+          <select name="role_id" required>
+            <% roles.forEach(r => { %><option value="<%= r.id %>"><%= r.name %></option><% }) %>
+          </select>
+        </label>
+        <label>Department
+          <select name="department_id">
+            <option value="">—</option>
+            <% departments.forEach(d => { %><option value="<%= d.id %>"><%= d.name %></option><% }) %>
+          </select>
+        </label>
+      </div>
+      <button type="submit" class="btn btn-primary">Create User</button>
+    </form>
+  </div>
+
+</div>
+
+<div class="card">
+  <h3>All users (<%= users.length %>)</h3>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr>
+        <th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Department</th><th>Status</th><th></th>
+      </tr></thead>
+      <tbody>
+        <% users.forEach(u => { %>
+          <tr>
+            <td><strong><%= u.full_name %></strong></td>
+            <td><code><%= u.username %></code></td>
+            <td><%= u.email || '—' %></td>
+            <td><span class="badge badge-info"><%= u.role_name.replace('_',' ') %></span></td>
+            <td><%= u.department_name || '—' %></td>
+            <td>
+              <% if (u.is_active) { %>
+                <span class="badge badge-success">Active</span>
+              <% } else { %>
+                <span class="badge badge-muted">Inactive</span>
+              <% } %>
+            </td>
+            <td>
+              <details>
+                <summary class="btn btn-link small">Edit</summary>
+                <form method="POST" action="/admin/users/<%= u.id %>/update" class="form compact mt8">
+                  <input type="text" name="full_name" value="<%= u.full_name %>">
+                  <input type="email" name="email" value="<%= u.email || '' %>" placeholder="Email">
+                  <select name="role_id">
+                    <% roles.forEach(r => { %><option value="<%= r.id %>" <%= u.role_id === r.id ? 'selected' : '' %>><%= r.name %></option><% }) %>
+                  </select>
+                  <select name="department_id">
+                    <option value="">— No dept —</option>
+                    <% departments.forEach(d => { %><option value="<%= d.id %>" <%= u.department_id === d.id ? 'selected' : '' %>><%= d.name %></option><% }) %>
+                  </select>
+                  <input type="text" name="password" placeholder="New password (leave blank to keep)">
+                  <label class="check-inline"><input type="checkbox" name="is_active" value="1" <%= u.is_active ? 'checked' : '' %>> Active</label>
+                  <button type="submit" class="btn btn-primary btn-small">Save</button>
+                </form>
+                <% if (u.id !== currentUser.id) { %>
+                  <form method="POST" action="/admin/users/<%= u.id %>/delete" class="mt8" onsubmit="return confirm('Deactivate this user?');">
+                    <button type="submit" class="btn btn-danger btn-small">Deactivate</button>
+                  </form>
+                <% } %>
+              </details>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,85 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+  <a href="/tickets/export/csv" class="btn btn-secondary">Export tickets CSV</a>
+</div>
+
+<div class="grid stat-grid">
+  <div class="stat-card"><div class="stat-label">Avg resolution time</div><div class="stat-value"><%= avgHours %> <small>hrs</small></div></div>
+  <div class="stat-card"><div class="stat-label">Aging open tickets</div><div class="stat-value"><%= aging.length %></div></div>
+</div>
+
+<div class="grid two-col">
+  <div class="card"><h3>By Status</h3><div class="chart-wrap"><canvas id="cStatus"></canvas></div></div>
+  <div class="card"><h3>By Priority</h3><div class="chart-wrap"><canvas id="cPriority"></canvas></div></div>
+</div>
+
+<div class="grid two-col">
+  <div class="card"><h3>By Department</h3><div class="chart-wrap"><canvas id="cDept"></canvas></div></div>
+  <div class="card"><h3>By Category</h3><div class="chart-wrap"><canvas id="cCat"></canvas></div></div>
+</div>
+
+<div class="card">
+  <h3>Tickets handled by staff</h3>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>Staff</th><th class="num">Total</th><th class="num">Resolved/Closed</th><th class="num">Open</th></tr></thead>
+      <tbody>
+        <% byStaff.forEach(s => { %>
+          <tr><td><%= s.name %></td><td class="num"><%= s.total %></td>
+              <td class="num"><%= s.resolved %></td><td class="num"><%= s.open %></td></tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Open Aging Tickets</h3>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr>
+        <th>#</th><th>Title</th><th>Requester</th><th>Assignee</th>
+        <th>Priority</th><th>Status</th><th class="num">Age (days)</th>
+      </tr></thead>
+      <tbody>
+        <% aging.forEach(t => { %>
+          <tr onclick="window.location='/tickets/<%= t.id %>'" class="clickable">
+            <td><%= t.ticket_number %></td>
+            <td><%= t.title %></td>
+            <td><%= t.requester_name %></td>
+            <td><%= t.assignee_name || '—' %></td>
+            <td><%- include('../partials/priority_badge', { priority: t.priority }) %></td>
+            <td><%- include('../partials/status_badge', { status: t.status }) %></td>
+            <td class="num <%= t.age_days > 7 ? 'text-danger' : '' %>"><%= t.age_days %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Projects by Status</h3>
+  <ul class="bare-list">
+    <% projects.forEach(p => { %>
+      <li><%- include('../partials/status_badge', { status: p.status }) %> · <%= p.c %></li>
+    <% }) %>
+  </ul>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  if (!window.makePieChart) return;
+  const st = <%- JSON.stringify(byStatus) %>;
+  const pr = <%- JSON.stringify(byPriority) %>;
+  const dp = <%- JSON.stringify(byDepartment) %>;
+  const ca = <%- JSON.stringify(byCategory) %>;
+  makePieChart('cStatus',   st.map(x=>x.status),   st.map(x=>x.c));
+  makePieChart('cPriority', pr.map(x=>x.priority), pr.map(x=>x.c));
+  makeBarChart('cDept',     dp.map(x=>x.name),     dp.map(x=>x.c));
+  makeBarChart('cCat',      ca.map(x=>x.name),     ca.map(x=>x.c));
+});
+</script>
+
+<%- include('../partials/footer') %>

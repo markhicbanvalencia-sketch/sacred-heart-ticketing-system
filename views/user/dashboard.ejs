@@ -1,0 +1,65 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+  <div>
+<p class="muted">Submit and track your IT support tickets here.</p>
+  </div>
+  <a href="/tickets/new" class="btn btn-primary">＋ Submit New Ticket</a>
+</div>
+
+<div class="grid stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total tickets</div>
+    <div class="stat-value"><%= counts.total %></div>
+  </div>
+  <div class="stat-card accent-blue">
+    <div class="stat-label">Open</div>
+    <div class="stat-value"><%= counts.open %></div>
+  </div>
+  <div class="stat-card accent-yellow">
+    <div class="stat-label">Pending</div>
+    <div class="stat-value"><%= counts.pending %></div>
+  </div>
+  <div class="stat-card accent-green">
+    <div class="stat-label">Resolved</div>
+    <div class="stat-value"><%= counts.resolved %></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>My Recent Tickets</h3>
+    <a href="/tickets" class="btn btn-link">View all →</a>
+  </div>
+  <% if (myTickets.length === 0) { %>
+    <div class="empty-state">
+      <p>You haven't submitted any tickets yet.</p>
+      <a href="/tickets/new" class="btn btn-primary">Submit your first ticket</a>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Ticket</th><th>Title</th><th>Category</th>
+            <th>Priority</th><th>Status</th><th>Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% myTickets.forEach(t => { %>
+            <tr onclick="window.location='/tickets/<%= t.id %>'" class="clickable">
+              <td><strong><%= t.ticket_number %></strong></td>
+              <td><%= t.title %></td>
+              <td><%= t.category_name || '—' %></td>
+              <td><%- include('../partials/priority_badge', { priority: t.priority }) %></td>
+              <td><%- include('../partials/status_badge', { status: t.status }) %></td>
+              <td class="muted small"><%= helpers.timeAgo(t.updated_at) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>

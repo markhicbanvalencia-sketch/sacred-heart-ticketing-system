@@ -1,0 +1,21 @@
+<%- include('../partials/header') %>
+
+<div class="card narrow-card">
+  <form method="POST" action="/admin/settings" class="form">
+    <label>Site name
+      <input type="text" name="site_name" value="<%= settings.site_name %>">
+    </label>
+    <label>Organization name
+      <input type="text" name="organization_name" value="<%= settings.organization_name %>">
+    </label>
+    <label>Ticket number prefix (e.g. TKT)
+      <input type="text" name="ticket_prefix" value="<%= settings.ticket_prefix %>" maxlength="10">
+    </label>
+    <label>Default SLA (hours)
+      <input type="number" name="default_sla_hours" value="<%= settings.default_sla_hours %>" min="1">
+    </label>
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+  </form>
+</div>
+
+<%- include('../partials/footer') %>

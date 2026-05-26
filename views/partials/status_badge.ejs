@@ -1,0 +1,17 @@
+<%
+const statusClass = {
+  'New':              'badge-info',
+  'Open':             'badge-info',
+  'Pending':          'badge-warning',
+  'In Progress':      'badge-primary',
+  'Waiting for User': 'badge-warning',
+  'Resolved':         'badge-success',
+  'Closed':           'badge-muted',
+  'Cancelled':        'badge-muted',
+  'Planned':          'badge-info',
+  'Ongoing':          'badge-primary',
+  'On Hold':          'badge-warning',
+  'Completed':        'badge-success',
+};
+const cls = statusClass[status] || 'badge-muted';
+%><span class="badge <%= cls %>"><%= status %></span>

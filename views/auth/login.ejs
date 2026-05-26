@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<%- include('../partials/head') %>
+</head>
+<body class="auth-page">
+  <div class="auth-card">
+    <div class="auth-brand">
+      <div class="brand-icon big">MISS</div>
+      <h1><%= siteName %></h1>
+      <p class="muted">Sign in to your account</p>
+    </div>
+
+    <% if (error) { %>
+      <div class="alert alert-error"><%= error %></div>
+    <% } %>
+
+    <form method="POST" action="/login" class="auth-form" autocomplete="on">
+      <input type="hidden" name="next" value="<%= next %>">
+      <label>Username
+        <input type="text" name="username" required autofocus autocomplete="username">
+      </label>
+      <label>Password
+        <input type="password" name="password" required autocomplete="current-password">
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">Sign in</button>
+    </form>
+
+  </div>
+</body>
+</html>

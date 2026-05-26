@@ -1,0 +1,38 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+  <span class="muted small">Showing last 60 notifications · all marked read on open</span>
+</div>
+
+<div class="card">
+  <% if (notifs.length === 0) { %>
+    <p class="muted">No notifications yet.</p>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Message</th>
+            <th>Ticket status</th>
+            <th>Assigned to</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% notifs.forEach(n => { %>
+            <tr class="<%= n.is_read ? '' : 'notif-unread' %>">
+              <td class="muted small"><%= helpers.timeAgo(n.created_at) %></td>
+              <td><%= n.message %></td>
+              <td><%- include('../partials/status_badge', { status: n.ticket_status }) %></td>
+              <td class="muted small"><%= n.assignee_name || '— Unassigned —' %></td>
+              <td><a href="/tickets/<%= n.ticket_id %>" class="btn btn-secondary btn-small">View</a></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>

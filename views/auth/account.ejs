@@ -1,0 +1,36 @@
+<%- include('../partials/header') %>
+<div class="page-header">
+  <h2>My Account</h2>
+</div>
+
+<div class="grid two-col">
+  <div class="card">
+    <h3>Profile</h3>
+    <dl class="data-list">
+      <dt>Full name</dt><dd><%= currentUser.full_name %></dd>
+      <dt>Username</dt><dd><%= currentUser.username %></dd>
+      <dt>Email</dt><dd><%= currentUser.email || '—' %></dd>
+      <dt>Role</dt><dd><span class="badge badge-info"><%= currentUser.role.replace('_',' ') %></span></dd>
+      <dt>Department</dt><dd><%= currentUser.department || '—' %></dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h3>Change password</h3>
+    <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+    <% if (success) { %><div class="alert alert-success"><%= success %></div><% } %>
+    <form method="POST" action="/account/password" class="form">
+      <label>Current password
+        <input type="password" name="current" required autocomplete="current-password">
+      </label>
+      <label>New password (min 6 chars)
+        <input type="password" name="next" required minlength="6" autocomplete="new-password">
+      </label>
+      <label>Confirm new password
+        <input type="password" name="confirm" required minlength="6" autocomplete="new-password">
+      </label>
+      <button type="submit" class="btn btn-primary">Change password</button>
+    </form>
+  </div>
+</div>
+<%- include('../partials/footer') %>

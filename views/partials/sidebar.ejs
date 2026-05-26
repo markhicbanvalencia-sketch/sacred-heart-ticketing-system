@@ -1,0 +1,51 @@
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">MIS</div>
+    <div>
+      <div class="brand-name"><%= siteName %></div>
+      <% if (orgName) { %><div class="brand-org"><%= orgName %></div><% } %>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <a href="/" class="<%= path === '/' || path.startsWith('/dashboard') ? 'active' : '' %>">
+      <span class="ico">🏠</span> Dashboard
+    </a>
+    <a href="/tickets" class="<%= path.startsWith('/tickets') ? 'active' : '' %>">
+      <span class="ico">🎫</span> Tickets
+    </a>
+    <a href="/projects" class="<%= path.startsWith('/projects') ? 'active' : '' %>">
+      <span class="ico">📁</span> Projects
+    </a>
+
+    <% if (['admin','it_staff'].includes(currentUser.role)) { %>
+      <a href="/reports" class="<%= path.startsWith('/reports') ? 'active' : '' %>">
+        <span class="ico">📊</span> Reports
+      </a>
+    <% } %>
+
+    <% if (currentUser.role === 'admin') { %>
+      <div class="sidebar-section">Administration</div>
+      <a href="/admin/users" class="<%= path.startsWith('/admin/users') ? 'active' : '' %>">
+        <span class="ico">👥</span> Users
+      </a>
+      <a href="/admin/departments" class="<%= path.startsWith('/admin/departments') ? 'active' : '' %>">
+        <span class="ico">🏢</span> Departments
+      </a>
+      <a href="/admin/categories" class="<%= path.startsWith('/admin/categories') ? 'active' : '' %>">
+        <span class="ico">🏷️</span> Categories
+      </a>
+      <a href="/admin/settings" class="<%= path.startsWith('/admin/settings') ? 'active' : '' %>">
+        <span class="ico">⚙️</span> Settings
+      </a>
+      <a href="/admin/audit" class="<%= path.startsWith('/admin/audit') ? 'active' : '' %>">
+        <span class="ico">📜</span> Audit Log
+      </a>
+    <% } %>
+  </nav>
+
+  <div class="sidebar-footer">
+    <small>v1.0 · Local</small><br>
+    <small>MV Tech I.T and Home Automation Services</small>
+  </div>
+</aside>

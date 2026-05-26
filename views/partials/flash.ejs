@@ -1,0 +1,6 @@
+<% if (flash) { %>
+  <div class="toast toast-<%= flash.type %>" data-auto-dismiss>
+    <%= flash.message %>
+    <button class="toast-close" aria-label="Dismiss">×</button>
+  </div>
+<% } %>

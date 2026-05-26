@@ -1,0 +1,240 @@
+<%- include('../partials/header') %>
+
+<%
+  const tasksDone  = tasks.filter(t => t.status === 'Completed').length;
+  const tasksTotal = tasks.length;
+  const today      = new Date().toISOString().slice(0, 10);
+%>
+
+<div class="page-header">
+  <div>
+    <div class="muted small"><a href="/projects">← All projects</a></div>
+<div class="meta-row">
+      <%- include('../partials/status_badge', { status: project.status }) %>
+      <%- include('../partials/priority_badge', { priority: project.priority }) %>
+      <span class="muted small">Owner: <strong><%= project.owner_name %></strong></span>
+    </div>
+  </div>
+  <% if (canEdit && currentUser.role === 'admin') { %>
+    <form method="POST" action="/projects/<%= project.id %>/delete" onsubmit="return confirm('Delete this project and all its tasks?');">
+      <button type="submit" class="btn btn-danger">Delete project</button>
+    </form>
+  <% } %>
+</div>
+
+<div class="grid view-grid">
+  <div class="main-col">
+    <div class="card">
+      <h3>Overview</h3>
+      <p class="prewrap"><%= project.description || 'No description.' %></p>
+      <div class="progress big mt8"><div class="progress-bar" style="width: <%= project.progress %>%"></div></div>
+      <div class="progress-meta">
+        <span class="muted small">
+          <% if (tasksTotal === 0) { %>
+            No tasks yet
+          <% } else { %>
+            <strong><%= tasksDone %></strong> of <strong><%= tasksTotal %></strong> tasks completed
+          <% } %>
+        </span>
+        <span class="muted small"><strong><%= project.progress %>%</strong> complete</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>Tasks</h3>
+        <span class="badge <%= tasksDone === tasksTotal && tasksTotal > 0 ? 'badge-success' : 'badge-muted' %>">
+          <%= tasksDone %> / <%= tasksTotal %> done
+        </span>
+      </div>
+      <% if (tasks.length === 0) { %>
+        <p class="muted">No tasks yet. Add a task below to start tracking progress.</p>
+      <% } else { %>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Task</th>
+                <th>Assignee</th>
+                <th>Status</th>
+                <th>Due</th>
+                <% if (canEdit) { %><th>Actions</th><% } %>
+              </tr>
+            </thead>
+            <tbody>
+              <% tasks.forEach(t => {
+                const isOverdue = t.due_date && t.due_date < today && t.status !== 'Completed' && t.status !== 'Cancelled';
+              %>
+                <tr class="<%= t.status === 'Completed' ? 'task-done' : '' %>">
+                  <td>
+                    <strong><%= t.title %></strong>
+                    <% if (t.description) { %><div class="muted small"><%= t.description %></div><% } %>
+                    <% if (t.status === 'Completed' && t.completed_at) { %>
+                      <div class="muted x-small">Completed <%= helpers.timeAgo(t.completed_at) %></div>
+                    <% } %>
+                  </td>
+                  <td>
+                    <% if (t.assignee_name) { %>
+                      <span class="assignee-chip"><%= t.assignee_name %></span>
+                    <% } else { %>
+                      <span class="muted">— Unassigned —</span>
+                    <% } %>
+                  </td>
+                  <td><%- include('../partials/status_badge', { status: t.status }) %></td>
+                  <td class="<%= isOverdue ? 'text-danger' : 'muted small' %>">
+                    <%= t.due_date || '—' %>
+                    <% if (isOverdue) { %><div class="x-small">Overdue</div><% } %>
+                  </td>
+                  <% if (canEdit) { %>
+                    <td class="task-actions">
+                      <% if (t.status === 'Pending') { %>
+                        <form method="POST" action="/projects/<%= project.id %>/tasks/<%= t.id %>/status">
+                          <input type="hidden" name="status" value="In Progress">
+                          <button type="submit" class="btn btn-secondary btn-small">▶ Start</button>
+                        </form>
+                      <% } else if (t.status === 'In Progress') { %>
+                        <form method="POST" action="/projects/<%= project.id %>/tasks/<%= t.id %>/status">
+                          <input type="hidden" name="status" value="Completed">
+                          <button type="submit" class="btn btn-success btn-small">✓ Done</button>
+                        </form>
+                      <% } else if (t.status === 'Completed') { %>
+                        <form method="POST" action="/projects/<%= project.id %>/tasks/<%= t.id %>/status">
+                          <input type="hidden" name="status" value="In Progress">
+                          <button type="submit" class="btn btn-secondary btn-small">↩ Reopen</button>
+                        </form>
+                      <% } %>
+                      <details class="inline">
+                        <summary class="btn btn-link small">Edit</summary>
+                        <form method="POST" action="/projects/<%= project.id %>/tasks/<%= t.id %>/update" class="form compact mt8">
+                          <input type="text" name="title" value="<%= t.title %>">
+                          <textarea name="description" rows="2"><%= t.description || '' %></textarea>
+                          <select name="status">
+                            <% ['Pending','In Progress','Completed','Cancelled'].forEach(s => { %>
+                              <option value="<%= s %>" <%= t.status === s ? 'selected' : '' %>><%= s %></option>
+                            <% }) %>
+                          </select>
+                          <select name="assigned_to">
+                            <option value="">— Unassigned —</option>
+                            <% users.forEach(u => { %>
+                              <option value="<%= u.id %>" <%= t.assigned_to === u.id ? 'selected' : '' %>><%= u.full_name %></option>
+                            <% }) %>
+                          </select>
+                          <input type="date" name="due_date" value="<%= t.due_date || '' %>">
+                          <div class="form-row">
+                            <button type="submit" class="btn btn-primary btn-small">Save</button>
+                          </div>
+                        </form>
+                        <form method="POST" action="/projects/<%= project.id %>/tasks/<%= t.id %>/delete" class="mt8"
+                              onsubmit="return confirm('Delete this task?');">
+                          <button type="submit" class="btn btn-danger btn-small">Delete task</button>
+                        </form>
+                      </details>
+                    </td>
+                  <% } %>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+
+      <% if (canEdit) { %>
+        <details class="mt16">
+          <summary class="btn btn-secondary">＋ Add task</summary>
+          <form method="POST" action="/projects/<%= project.id %>/tasks" class="form compact mt8">
+            <input type="text" name="title" placeholder="Task title" required>
+            <textarea name="description" rows="2" placeholder="Description (optional)"></textarea>
+            <div class="form-row">
+              <select name="assigned_to">
+                <option value="">— Unassigned —</option>
+                <% users.forEach(u => { %><option value="<%= u.id %>"><%= u.full_name %></option><% }) %>
+              </select>
+              <select name="status">
+                <% ['Pending','In Progress'].forEach(s => { %><option value="<%= s %>"><%= s %></option><% }) %>
+              </select>
+              <input type="date" name="due_date">
+            </div>
+            <button type="submit" class="btn btn-primary">Add Task</button>
+          </form>
+        </details>
+      <% } %>
+    </div>
+  </div>
+
+  <aside class="side-col">
+    <div class="card">
+      <h3>Details</h3>
+      <dl class="data-list">
+        <dt>Status</dt><dd><%- include('../partials/status_badge', { status: project.status }) %></dd>
+        <dt>Priority</dt><dd><%- include('../partials/priority_badge', { priority: project.priority }) %></dd>
+        <dt>Department</dt><dd><%= project.department_name || '—' %></dd>
+        <dt>Owner</dt><dd><%= project.owner_name %></dd>
+        <dt>Start date</dt><dd><%= project.start_date || '—' %></dd>
+        <dt>Target date</dt><dd><%= project.target_date || '—' %></dd>
+        <dt>Created</dt><dd><%= helpers.fmtDate(project.created_at) %></dd>
+        <dt>Updated</dt><dd><%= helpers.fmtDate(project.updated_at) %></dd>
+        <% if (project.remarks) { %><dt>Remarks</dt><dd><%= project.remarks %></dd><% } %>
+      </dl>
+
+      <% if (canEdit) { %>
+        <details class="mt16">
+          <summary class="btn btn-secondary btn-block">Edit project</summary>
+          <form method="POST" action="/projects/<%= project.id %>/update" class="form compact mt8">
+            <input type="text" name="name" value="<%= project.name %>">
+            <textarea name="description" rows="3"><%= project.description || '' %></textarea>
+            <select name="status">
+              <% PROJECT_STATUSES.forEach(s => { %><option value="<%= s %>" <%= project.status === s ? 'selected' : '' %>><%= s %></option><% }) %>
+            </select>
+            <select name="priority">
+              <% PRIORITIES.forEach(p => { %><option value="<%= p %>" <%= project.priority === p ? 'selected' : '' %>><%= p %></option><% }) %>
+            </select>
+            <input type="date" name="start_date" value="<%= project.start_date || '' %>">
+            <input type="date" name="target_date" value="<%= project.target_date || '' %>">
+            <select name="owner_id">
+              <% users.forEach(u => { %><option value="<%= u.id %>" <%= project.owner_id === u.id ? 'selected' : '' %>><%= u.full_name %></option><% }) %>
+            </select>
+            <textarea name="remarks" rows="2"><%= project.remarks || '' %></textarea>
+            <button type="submit" class="btn btn-primary btn-block">Save</button>
+          </form>
+        </details>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <h3>Members</h3>
+      <% if (members.length === 0) { %>
+        <p class="muted small">No additional members.</p>
+      <% } else { %>
+        <ul class="bare-list">
+          <% members.forEach(m => { %>
+            <li>
+              <strong><%= m.full_name %></strong>
+              <% if (m.role_in_project) { %><span class="muted small">· <%= m.role_in_project %></span><% } %>
+              <% if (canEdit) { %>
+                <form method="POST" action="/projects/<%= project.id %>/members/<%= m.id %>/delete" class="inline">
+                  <button type="submit" class="btn btn-link small">remove</button>
+                </form>
+              <% } %>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+
+      <% if (canEdit) { %>
+        <details class="mt8">
+          <summary class="btn btn-link">＋ Add member</summary>
+          <form method="POST" action="/projects/<%= project.id %>/members" class="form compact mt8">
+            <select name="user_id" required>
+              <option value="">— Select user —</option>
+              <% users.forEach(u => { %><option value="<%= u.id %>"><%= u.full_name %></option><% }) %>
+            </select>
+            <input type="text" name="role_in_project" placeholder="Role (optional)">
+            <button type="submit" class="btn btn-primary btn-small">Add</button>
+          </form>
+        </details>
+      <% } %>
+    </div>
+  </aside>
+</div>
+
+<%- include('../partials/footer') %>

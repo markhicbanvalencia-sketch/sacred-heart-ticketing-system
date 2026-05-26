@@ -1,0 +1,18 @@
+<% if (typeof currentUser !== 'undefined' && currentUser) { %>
+<%- include('partials/header') %>
+<div class="card center-card">
+  <h2><%= title %></h2>
+  <p class="muted"><%= message %></p>
+  <a href="/" class="btn btn-secondary">Back to dashboard</a>
+</div>
+<%- include('partials/footer') %>
+<% } else { %>
+<!DOCTYPE html><html><head><%- include('partials/head') %></head>
+<body class="auth-page">
+  <div class="auth-card">
+    <h2><%= title %></h2>
+    <p class="muted"><%= message %></p>
+    <a href="/login" class="btn btn-primary">Go to login</a>
+  </div>
+</body></html>
+<% } %>

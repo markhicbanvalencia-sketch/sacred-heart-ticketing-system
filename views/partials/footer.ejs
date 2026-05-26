@@ -1,0 +1,13 @@
+</main>
+</div>
+<% if (typeof currentUser !== 'undefined' && currentUser) { %>
+<script>
+  window.__RT_USER   = true;
+  window.__RT_STAFF  = <%= ['admin','it_staff'].includes(currentUser.role) %>;
+  window.__RT_TICKET = <%= (typeof ticket !== 'undefined' && ticket) ? ticket.id : 'null' %>;
+  window.__RT_LAST_COMMENT = <%= (typeof comments !== 'undefined' && comments.length) ? comments[comments.length - 1].id : 0 %>;
+</script>
+<script src="/static/js/realtime.js"></script>
+<% } %>
+</body>
+</html>

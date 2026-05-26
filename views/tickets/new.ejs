@@ -1,0 +1,77 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+<a href="/tickets" class="btn btn-link">← Back to tickets</a>
+</div>
+
+<div class="card narrow-card">
+  <% if (error) { %>
+    <div class="alert alert-error"><%= error %></div>
+  <% } %>
+
+  <form method="POST" action="/tickets" enctype="multipart/form-data" class="form">
+    <label>Title <span class="req">*</span>
+      <input type="text" name="title" required maxlength="120" placeholder="Short summary of the issue"
+        value="<%= values.title || '' %>">
+    </label>
+
+    <div class="form-row">
+      <label>Category
+        <select name="category_id">
+          <option value="">— Select —</option>
+          <% categories.forEach(c => { %>
+            <option value="<%= c.id %>" <%= String(values.category_id) === String(c.id) ? 'selected' : '' %>>
+              <%= c.name %>
+            </option>
+          <% }) %>
+        </select>
+      </label>
+
+      <label>Department
+        <% if (['admin','it_staff'].includes(currentUser.role)) { %>
+          <select name="department_id">
+            <option value="">— Any —</option>
+            <% departments.forEach(d => { %>
+              <option value="<%= d.id %>"
+                <%= String(values.department_id || currentUser.department_id) === String(d.id) ? 'selected' : '' %>>
+                <%= d.name %>
+              </option>
+            <% }) %>
+          </select>
+        <% } else { %>
+          <input type="hidden" name="department_id" value="<%= currentUser.department_id || '' %>">
+          <input type="text" value="<%= currentUser.department || 'Not assigned' %>" disabled style="background:var(--surface-2);cursor:default;">
+        <% } %>
+      </label>
+    </div>
+
+    <div class="form-row">
+      <label>Priority
+        <select name="priority">
+          <% PRIORITIES.forEach(p => { %>
+            <option value="<%= p %>" <%= (values.priority || 'Medium') === p ? 'selected' : '' %>><%= p %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Needed by (optional)
+        <input type="date" name="due_date" value="<%= values.due_date || '' %>">
+      </label>
+    </div>
+
+    <label>Description <span class="req">*</span>
+      <textarea name="description" required rows="6"
+        placeholder="Describe what happened, what you expected, and any error messages."><%= values.description || '' %></textarea>
+    </label>
+
+    <label>Attachments (optional, up to 5 files, 10MB each)
+      <input type="file" name="attachments" multiple accept=".png,.jpg,.jpeg,.gif,.webp,.pdf,.txt,.csv,.zip,.doc,.docx,.xls,.xlsx">
+    </label>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Submit Ticket</button>
+      <a href="/tickets" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<%- include('../partials/footer') %>

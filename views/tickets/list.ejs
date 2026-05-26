@@ -1,0 +1,103 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+<div class="header-actions">
+    <a href="/tickets/new" class="btn btn-primary">＋ New Ticket</a>
+    <% if (['admin','it_staff'].includes(currentUser.role)) { %>
+      <a href="/tickets/export/csv" class="btn btn-secondary">Export CSV</a>
+    <% } %>
+  </div>
+</div>
+
+<form method="GET" action="/tickets" class="filter-bar">
+  <input type="search" name="search" placeholder="Search by number, title, or description…" value="<%= filters.search || '' %>">
+  <select name="status">
+    <option value="">All statuses</option>
+    <% STATUSES.forEach(s => { %>
+      <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option>
+    <% }) %>
+  </select>
+  <select name="priority">
+    <option value="">All priorities</option>
+    <% PRIORITIES.forEach(p => { %>
+      <option value="<%= p %>" <%= filters.priority === p ? 'selected' : '' %>><%= p %></option>
+    <% }) %>
+  </select>
+  <select name="category">
+    <option value="">All categories</option>
+    <% categories.forEach(c => { %>
+      <option value="<%= c.id %>" <%= String(filters.category) === String(c.id) ? 'selected' : '' %>><%= c.name %></option>
+    <% }) %>
+  </select>
+  <% if (['admin','it_staff'].includes(currentUser.role)) { %>
+    <select name="department">
+      <option value="">All departments</option>
+      <% departments.forEach(d => { %>
+        <option value="<%= d.id %>" <%= String(filters.department) === String(d.id) ? 'selected' : '' %>><%= d.name %></option>
+      <% }) %>
+    </select>
+    <select name="assignee">
+      <option value="">Any assignee</option>
+      <% staff.forEach(s => { %>
+        <option value="<%= s.id %>" <%= String(filters.assignee) === String(s.id) ? 'selected' : '' %>><%= s.full_name %></option>
+      <% }) %>
+    </select>
+    <label class="check-inline">
+      <input type="checkbox" name="mine" value="1" <%= filters.mine === '1' ? 'checked' : '' %>> Assigned to me
+    </label>
+  <% } %>
+  <button type="submit" class="btn btn-primary">Filter</button>
+  <a href="/tickets" class="btn btn-link">Reset</a>
+</form>
+
+<div class="card">
+  <% if (tickets.length === 0) { %>
+    <div class="empty-state">
+      <p>No tickets match your filters.</p>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Title</th>
+            <% if (['admin','it_staff'].includes(currentUser.role)) { %><th>Requester</th><th>Dept</th><% } %>
+            <th>Category</th><th>Priority</th><th>Status</th>
+            <% if (['admin','it_staff'].includes(currentUser.role)) { %><th>Assignee</th><% } %>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% tickets.forEach(t => { %>
+            <tr onclick="window.location='/tickets/<%= t.id %>'" class="clickable">
+              <td><strong><%= t.ticket_number %></strong></td>
+              <td><%= t.title %></td>
+              <% if (['admin','it_staff'].includes(currentUser.role)) { %>
+                <td><%= t.requester_name %></td>
+                <td><%= t.department_name || '—' %></td>
+              <% } %>
+              <td><%= t.category_name || '—' %></td>
+              <td><%- include('../partials/priority_badge', { priority: t.priority }) %></td>
+              <td><%- include('../partials/status_badge', { status: t.status }) %></td>
+              <% if (['admin','it_staff'].includes(currentUser.role)) { %>
+                <td onclick="event.stopPropagation()">
+                  <% if (!t.assignee_name && !['Closed','Cancelled','Resolved'].includes(t.status)) { %>
+                    <form method="POST" action="/tickets/<%= t.id %>/take">
+                      <button type="submit" class="btn btn-primary btn-small">⚡ Take</button>
+                    </form>
+                  <% } else { %>
+                    <%= t.assignee_name || '—' %>
+                  <% } %>
+                </td>
+              <% } %>
+              <td class="muted small"><%= helpers.timeAgo(t.updated_at) %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+    <div class="table-footer muted small">Showing <%= tickets.length %> ticket(s).</div>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>

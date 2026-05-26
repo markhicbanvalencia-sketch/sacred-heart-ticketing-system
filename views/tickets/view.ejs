@@ -1,0 +1,199 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+  <div>
+    <div class="muted small"><a href="/tickets">← All tickets</a></div>
+<div class="meta-row">
+      <%- include('../partials/status_badge', { status: ticket.status }) %>
+      <%- include('../partials/priority_badge', { priority: ticket.priority }) %>
+      <span class="muted small">Opened by <strong><%= ticket.requester_name %></strong>
+        · <%= helpers.fmtDate(ticket.created_at) %></span>
+    </div>
+  </div>
+  <div class="header-actions">
+    <% if (['admin','it_staff'].includes(currentUser.role) && !ticket.assigned_to && !['Closed','Cancelled','Resolved'].includes(ticket.status)) { %>
+      <form method="POST" action="/tickets/<%= ticket.id %>/take">
+        <button type="submit" class="btn btn-primary">⚡ Take ticket</button>
+      </form>
+    <% } %>
+    <a href="/tickets/<%= ticket.id %>/print" target="_blank" class="btn btn-secondary">🖨 Print</a>
+  </div>
+</div>
+
+<div class="grid view-grid">
+  <div class="main-col">
+    <div class="card">
+      <h3>Description</h3>
+      <p class="prewrap"><%= ticket.description %></p>
+    </div>
+
+    <div class="card" id="attachments">
+      <h3>Attachments</h3>
+      <% if (attachments.length === 0) { %>
+        <p class="muted">No attachments.</p>
+      <% } else { %>
+        <ul class="attach-list">
+          <% attachments.forEach(a => { %>
+            <li>
+              <a href="/tickets/<%= ticket.id %>/attachments/<%= a.id %>"><%= a.original_name %></a>
+              <span class="muted small">(<%= Math.round(a.size_bytes/1024) %> KB)</span>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+      <details>
+        <summary class="btn btn-link">Add attachment</summary>
+        <form method="POST" action="/tickets/<%= ticket.id %>/attachments" enctype="multipart/form-data" class="inline-form">
+          <input type="file" name="attachments" multiple required>
+          <button type="submit" class="btn btn-secondary">Upload</button>
+        </form>
+      </details>
+    </div>
+
+    <div class="card" id="comments">
+      <h3>Conversation</h3>
+      <% if (comments.length === 0) { %>
+        <p class="muted" id="noComments">No comments yet.</p>
+      <% } %>
+      <ul class="comment-list" id="commentList">
+        <% comments.forEach(c => { %>
+          <li class="comment <%= c.is_internal ? 'internal' : '' %>" data-id="<%= c.id %>">
+              <div class="comment-head">
+                <span class="avatar"><%= c.user_name.charAt(0).toUpperCase() %></span>
+                <div>
+                  <strong><%= c.user_name %></strong>
+                  <span class="badge badge-info small"><%= c.role.replace('_',' ') %></span>
+                  <% if (c.is_internal) { %><span class="badge badge-warning small">internal note</span><% } %>
+                  <div class="muted small"><%= helpers.fmtDate(c.created_at) %></div>
+                </div>
+              </div>
+              <div class="comment-body prewrap"><%= c.body %></div>
+            </li>
+        <% }) %>
+      </ul>
+
+      <form method="POST" action="/tickets/<%= ticket.id %>/comments" class="form">
+        <label>Add a comment
+          <textarea name="body" rows="3" required placeholder="Type a reply or update…"></textarea>
+        </label>
+        <% if (['admin','it_staff'].includes(currentUser.role)) { %>
+          <label class="check-inline">
+            <input type="checkbox" name="is_internal" value="1"> Internal note (not visible to requester)
+          </label>
+        <% } %>
+        <button type="submit" class="btn btn-primary">Post Comment</button>
+      </form>
+    </div>
+  </div>
+
+  <aside class="side-col">
+    <div class="card">
+      <h3>Details</h3>
+      <dl class="data-list">
+        <dt>Status</dt><dd><%- include('../partials/status_badge', { status: ticket.status }) %></dd>
+        <dt>Priority</dt><dd><%- include('../partials/priority_badge', { priority: ticket.priority }) %></dd>
+        <dt>Category</dt><dd><%= ticket.category_name || '—' %></dd>
+        <dt>Department</dt><dd><%= ticket.department_name || '—' %></dd>
+        <dt>Requester</dt><dd><%= ticket.requester_name %></dd>
+        <dt>Assignee</dt><dd><%= ticket.assignee_name || '— Unassigned —' %></dd>
+        <dt>Due date</dt><dd><%= ticket.due_date || '—' %></dd>
+        <dt>Created</dt><dd><%= helpers.fmtDate(ticket.created_at) %></dd>
+        <dt>Updated</dt><dd><%= helpers.fmtDate(ticket.updated_at) %></dd>
+        <% if (ticket.resolved_at) { %><dt>Resolved</dt><dd><%= helpers.fmtDate(ticket.resolved_at) %></dd><% } %>
+        <% if (ticket.closed_at) { %><dt>Closed</dt><dd><%= helpers.fmtDate(ticket.closed_at) %></dd><% } %>
+      </dl>
+      <% if (ticket.resolution_notes) { %>
+        <div class="resolution-notes mt8">
+          <div class="muted small" style="font-weight:600;margin-bottom:4px;">Resolution notes</div>
+          <p class="prewrap small" style="margin:0;"><%= ticket.resolution_notes %></p>
+        </div>
+      <% } %>
+    </div>
+
+    <% if (['admin','it_staff'].includes(currentUser.role)) { %>
+      <div class="card">
+        <h3>Manage</h3>
+        <form method="POST" action="/tickets/<%= ticket.id %>/update" class="form compact">
+          <label>Status
+            <select name="status">
+              <% STATUSES.forEach(s => { %>
+                <option value="<%= s %>" <%= ticket.status === s ? 'selected' : '' %>><%= s %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>Priority
+            <select name="priority">
+              <% PRIORITIES.forEach(p => { %>
+                <option value="<%= p %>" <%= ticket.priority === p ? 'selected' : '' %>><%= p %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>Assignee
+            <select name="assigned_to">
+              <option value="">— Unassigned —</option>
+              <% staff.forEach(s => { %>
+                <option value="<%= s.id %>" <%= ticket.assigned_to === s.id ? 'selected' : '' %>><%= s.full_name %></option>
+              <% }) %>
+            </select>
+          </label>
+          <label>Due date
+            <input type="date" name="due_date" value="<%= ticket.due_date || '' %>">
+          </label>
+          <div id="resolutionNotesWrap" style="display:<%= ticket.status === 'Resolved' ? 'block' : 'none' %>;">
+            <label>Resolution notes <span class="req">*</span>
+              <textarea name="resolution_notes" id="resolutionNotesInput" rows="4"
+                placeholder="Describe what was done to resolve this ticket…"
+                style="resize:vertical;"><%= ticket.resolution_notes || '' %></textarea>
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Save Changes</button>
+        </form>
+        <script>
+          (function() {
+            const sel = document.querySelector('select[name="status"]');
+            const wrap = document.getElementById('resolutionNotesWrap');
+            const ta = document.getElementById('resolutionNotesInput');
+            function toggle() {
+              const show = sel.value === 'Resolved';
+              wrap.style.display = show ? 'block' : 'none';
+              ta.required = show;
+            }
+            sel.addEventListener('change', toggle);
+            toggle();
+          })();
+        </script>
+      </div>
+    <% } else if (ticket.requester_id === currentUser.id) { %>
+      <div class="card">
+        <h3>Actions</h3>
+        <% if (ticket.status === 'Resolved') { %>
+          <form method="POST" action="/tickets/<%= ticket.id %>/update">
+            <input type="hidden" name="status" value="Closed">
+            <button type="submit" class="btn btn-success btn-block">✓ Confirm Resolved & Close</button>
+          </form>
+          <form method="POST" action="/tickets/<%= ticket.id %>/update" class="mt8">
+            <input type="hidden" name="status" value="Open">
+            <button type="submit" class="btn btn-secondary btn-block">Reopen</button>
+          </form>
+        <% } else if (!['Closed','Cancelled'].includes(ticket.status)) { %>
+          <p class="muted small">When the IT team marks this ticket as Resolved, you'll be able to confirm and close it here.</p>
+        <% } %>
+      </div>
+    <% } %>
+
+    <div class="card">
+      <h3>Activity</h3>
+      <ul class="activity-feed small">
+        <% activity.forEach(a => { %>
+          <li>
+            <span class="badge badge-muted small"><%= a.action %></span>
+            <span><%= a.detail || '' %></span>
+            <div class="muted x-small"><%= a.user_name || 'System' %> · <%= helpers.timeAgo(a.created_at) %></div>
+          </li>
+        <% }) %>
+      </ul>
+    </div>
+  </aside>
+</div>
+
+<%- include('../partials/footer') %>

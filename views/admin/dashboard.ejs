@@ -1,0 +1,123 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+<div class="header-actions">
+    <a href="/reports" class="btn btn-secondary">📊 Reports</a>
+    <a href="/admin/settings" class="btn btn-secondary">⚙️ Settings</a>
+  </div>
+</div>
+
+<div class="grid stat-grid">
+  <div class="stat-card"><div class="stat-label">Active users</div><div class="stat-value"><%= stats.users %></div></div>
+  <div class="stat-card"><div class="stat-label">Departments</div><div class="stat-value"><%= stats.departments %></div></div>
+  <div class="stat-card accent-blue"><div class="stat-label">Total tickets</div><div class="stat-value"><%= stats.tickets %></div></div>
+  <div class="stat-card accent-yellow"><div class="stat-label">Open tickets</div><div class="stat-value"><%= stats.open %></div></div>
+  <div class="stat-card accent-purple"><div class="stat-label">Projects</div><div class="stat-value"><%= stats.projects %></div></div>
+  <div class="stat-card accent-green"><div class="stat-label">Ongoing</div><div class="stat-value"><%= stats.ongoing %></div></div>
+</div>
+
+<div class="grid two-col">
+  <div class="card">
+    <h3>Tickets by Status</h3>
+    <div class="chart-wrap"><canvas id="statusChart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Projects by Status</h3>
+    <div class="chart-wrap"><canvas id="projChart"></canvas></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>IT Staff Performance</h3>
+    <span class="muted small">Tickets &amp; project tasks</span>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Staff</th>
+          <th class="num">Tickets Assigned</th>
+          <th class="num">Tickets Resolved</th>
+          <th class="num">Avg Resolve</th>
+          <th class="num">Tasks Assigned</th>
+          <th class="num">Tasks Done</th>
+          <th>Completion Rate</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% staffPerformance.forEach((s, i) => {
+          const ticketRate = s.tickets_assigned > 0 ? Math.round((s.tickets_resolved / s.tickets_assigned) * 100) : 0;
+          const taskRate   = s.tasks_assigned   > 0 ? Math.round((s.tasks_done       / s.tasks_assigned)   * 100) : 0;
+          const overall    = (ticketRate + taskRate) > 0 ? Math.round((ticketRate + taskRate) / 2) : 0;
+        %>
+          <tr>
+            <td>
+              <strong><%= s.full_name %></strong>
+              <% if (i === 0 && (s.tickets_resolved > 0 || s.tasks_done > 0)) { %>
+                <span class="badge badge-success" style="margin-left:6px;">Top</span>
+              <% } %>
+            </td>
+            <td class="num"><%= s.tickets_assigned %></td>
+            <td class="num"><%= s.tickets_resolved %></td>
+            <td class="num muted small"><%= s.avg_hours != null ? s.avg_hours + ' hrs' : '—' %></td>
+            <td class="num"><%= s.tasks_assigned %></td>
+            <td class="num"><%= s.tasks_done %></td>
+            <td style="min-width:140px;">
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div class="progress" style="flex:1;margin:0;">
+                  <div class="progress-bar" style="width:<%= overall %>%;background:<%= overall >= 75 ? 'var(--success)' : overall >= 40 ? 'var(--warning)' : 'var(--danger)' %>"></div>
+                </div>
+                <span class="muted small" style="width:34px;text-align:right;"><%= overall %>%</span>
+              </div>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Aging Open Tickets (oldest first)</h3>
+  </div>
+  <% if (aging.length === 0) { %>
+    <p class="muted">No open tickets — all caught up. 🎉</p>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead><tr>
+          <th>#</th><th>Title</th><th>Requester</th><th>Assignee</th>
+          <th>Priority</th><th>Status</th><th class="num">Age (days)</th>
+        </tr></thead>
+        <tbody>
+          <% aging.forEach(t => { %>
+            <tr onclick="window.location='/tickets/<%= t.id %>'" class="clickable">
+              <td><%= t.ticket_number %></td>
+              <td><%= t.title %></td>
+              <td><%= t.requester_name %></td>
+              <td><%= t.assignee_name || '—' %></td>
+              <td><%- include('../partials/priority_badge', { priority: t.priority }) %></td>
+              <td><%- include('../partials/status_badge', { status: t.status }) %></td>
+              <td class="num <%= t.age_days > 7 ? 'text-danger' : '' %>"><%= t.age_days %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const s = <%- JSON.stringify(ticketsByStatus) %>;
+    const p = <%- JSON.stringify(projectsByStatus) %>;
+    if (window.makePieChart) {
+      makePieChart('statusChart', s.map(x=>x.status), s.map(x=>x.c));
+      makePieChart('projChart',   p.map(x=>x.status), p.map(x=>x.c));
+    }
+  });
+</script>
+
+<%- include('../partials/footer') %>

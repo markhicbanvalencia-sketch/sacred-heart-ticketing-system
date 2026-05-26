@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Database & local data (never push — contains real user data)
+data/
+
+# Uploaded files
+uploads/*
+!uploads/.gitkeep
+
+# Sessions
+data/sessions/
+
+# Environment / secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+npm-debug.log*

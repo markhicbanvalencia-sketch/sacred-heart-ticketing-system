@@ -1,0 +1,48 @@
+<%- include('../partials/header') %>
+
+<div class="grid two-col">
+  <div class="card">
+    <h3>Add category</h3>
+    <form method="POST" action="/admin/categories" class="form">
+      <label>Name <span class="req">*</span><input type="text" name="name" required></label>
+      <label>Description<input type="text" name="description"></label>
+      <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+  </div>
+  <div class="card">
+    <h3>All categories (<%= categories.length %>)</h3>
+    <table class="data-table">
+      <thead><tr><th>Name</th><th>Description</th><th>Active</th><th></th></tr></thead>
+      <tbody>
+        <% categories.forEach(c => { %>
+          <tr>
+            <td><strong><%= c.name %></strong></td>
+            <td class="muted small"><%= c.description || '—' %></td>
+            <td>
+              <% if (c.is_active) { %><span class="badge badge-success">Yes</span>
+              <% } else { %><span class="badge badge-muted">No</span><% } %>
+            </td>
+            <td>
+              <details>
+                <summary class="btn btn-link small">Edit</summary>
+                <form method="POST" action="/admin/categories/<%= c.id %>/update" class="form compact mt8">
+                  <input type="text" name="name" value="<%= c.name %>" required>
+                  <input type="text" name="description" value="<%= c.description || '' %>">
+                  <label class="check-inline">
+                    <input type="checkbox" name="is_active" value="1" <%= c.is_active ? 'checked' : '' %>> Active
+                  </label>
+                  <button type="submit" class="btn btn-primary btn-small">Save</button>
+                </form>
+                <form method="POST" action="/admin/categories/<%= c.id %>/delete" class="mt8" onsubmit="return confirm('Delete this category?');">
+                  <button type="submit" class="btn btn-danger btn-small">Delete</button>
+                </form>
+              </details>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

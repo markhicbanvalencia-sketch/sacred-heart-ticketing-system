@@ -1,0 +1,9 @@
+<%
+const priClass = {
+  'Low':    'badge-muted',
+  'Medium': 'badge-info',
+  'High':   'badge-warning',
+  'Urgent': 'badge-danger',
+};
+const cls = priClass[priority] || 'badge-muted';
+%><span class="badge <%= cls %>"><%= priority %></span>

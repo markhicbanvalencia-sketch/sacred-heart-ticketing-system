@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title><%= ticket.ticket_number %> · Ticket Report</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 32px; color: #222; }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  .meta { color: #555; font-size: 12px; margin-bottom: 24px; border-bottom: 1px solid #ccc; padding-bottom: 12px; }
+  .section { margin: 18px 0; }
+  .section h2 { font-size: 14px; text-transform: uppercase; color: #666; margin: 0 0 6px; letter-spacing: .5px; }
+  .field { display: grid; grid-template-columns: 160px 1fr; gap: 8px; margin: 4px 0; font-size: 13px; }
+  .desc { white-space: pre-wrap; background: #f6f7f9; padding: 12px; border-radius: 6px; font-size: 13px; }
+  .comment { border-left: 3px solid #ccc; padding: 8px 12px; margin: 8px 0; font-size: 12px; }
+  .comment .who { color: #444; font-weight: bold; }
+  .footer { margin-top: 32px; font-size: 11px; color: #888; border-top: 1px solid #ccc; padding-top: 10px; }
+  @media print { .noprint { display: none; } }
+</style>
+</head>
+<body>
+  <button class="noprint" onclick="window.print()" style="float:right">🖨 Print</button>
+  <h1>Ticket <%= ticket.ticket_number %></h1>
+  <div class="meta"><%= ticket.title %></div>
+
+  <div class="section">
+    <h2>Details</h2>
+    <div class="field"><div>Status</div><div><%= ticket.status %></div></div>
+    <div class="field"><div>Priority</div><div><%= ticket.priority %></div></div>
+    <div class="field"><div>Category</div><div><%= ticket.category_name || '—' %></div></div>
+    <div class="field"><div>Department</div><div><%= ticket.department_name || '—' %></div></div>
+    <div class="field"><div>Requester</div><div><%= ticket.requester_name %> &lt;<%= ticket.requester_email || '' %>&gt;</div></div>
+    <div class="field"><div>Assignee</div><div><%= ticket.assignee_name || 'Unassigned' %></div></div>
+    <div class="field"><div>Created</div><div><%= helpers.fmtDate(ticket.created_at) %></div></div>
+    <div class="field"><div>Updated</div><div><%= helpers.fmtDate(ticket.updated_at) %></div></div>
+    <% if (ticket.resolved_at) { %><div class="field"><div>Resolved</div><div><%= helpers.fmtDate(ticket.resolved_at) %></div></div><% } %>
+    <% if (ticket.due_date) { %><div class="field"><div>Due date</div><div><%= ticket.due_date %></div></div><% } %>
+  </div>
+
+  <div class="section">
+    <h2>Description</h2>
+    <div class="desc"><%= ticket.description %></div>
+  </div>
+
+  <div class="section">
+    <h2>Conversation</h2>
+    <% if (comments.length === 0) { %>
+      <p>No comments.</p>
+    <% } else { %>
+      <% comments.forEach(c => { %>
+        <div class="comment">
+          <div class="who"><%= c.user_name %> · <%= helpers.fmtDate(c.created_at) %></div>
+          <div style="white-space: pre-wrap;"><%= c.body %></div>
+        </div>
+      <% }) %>
+    <% } %>
+  </div>
+
+  <div class="footer">
+    Generated on <%= helpers.fmtDate(new Date()) %> · <%= siteName %>
+  </div>
+</body>
+</html>

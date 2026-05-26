@@ -1,0 +1,115 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+<div class="header-actions">
+    <a href="/tickets" class="btn btn-secondary">All Tickets</a>
+    <a href="/tickets/export/csv" class="btn btn-secondary">Export CSV</a>
+  </div>
+</div>
+
+<div class="grid stat-grid">
+  <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value"><%= counts.total %></div></div>
+  <div class="stat-card accent-blue"><div class="stat-label">New</div><div class="stat-value"><%= counts.new %></div></div>
+  <div class="stat-card accent-purple"><div class="stat-label">In Progress</div><div class="stat-value"><%= counts.in_progress %></div></div>
+  <div class="stat-card accent-yellow"><div class="stat-label">Pending</div><div class="stat-value"><%= counts.pending %></div></div>
+  <div class="stat-card accent-green"><div class="stat-label">Resolved</div><div class="stat-value"><%= counts.resolved %></div></div>
+  <div class="stat-card accent-red"><div class="stat-label">Urgent open</div><div class="stat-value"><%= counts.urgent %></div></div>
+</div>
+
+<div class="grid two-col">
+  <div class="card">
+    <h3>Tickets by Category</h3>
+    <div class="chart-wrap"><canvas id="catChart"></canvas></div>
+  </div>
+  <div class="card">
+    <h3>Tickets by Department</h3>
+    <div class="chart-wrap"><canvas id="deptChart"></canvas></div>
+  </div>
+</div>
+
+<div class="grid two-col">
+  <div class="card">
+    <h3>Staff Workload (open tickets)</h3>
+    <% if (workload.length === 0) { %>
+      <p class="muted">No IT staff yet.</p>
+    <% } else { %>
+      <table class="data-table">
+        <thead><tr><th>Staff</th><th class="num">Open</th></tr></thead>
+        <tbody>
+          <% workload.forEach(w => { %>
+            <tr><td><%= w.name %></td><td class="num"><%= w.c %></td></tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+
+  <div class="card">
+    <h3>Project Status</h3>
+    <% if (projectsSummary.length === 0) { %>
+      <p class="muted">No projects yet. <a href="/projects/new">Create one</a>.</p>
+    <% } else { %>
+      <ul class="bare-list">
+        <% projectsSummary.forEach(p => { %>
+          <li><%- include('../partials/status_badge', { status: p.status }) %> <%= p.c %></li>
+        <% }) %>
+      </ul>
+      <a href="/projects" class="btn btn-link">Open projects →</a>
+    <% } %>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3>Active Ticket Queue</h3>
+    <a href="/tickets" class="btn btn-link">View all →</a>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr>
+        <th>#</th><th>Title</th><th>Requester</th><th>Dept</th>
+        <th>Priority</th><th>Status</th><th>Assignee</th><th>Created</th>
+      </tr></thead>
+      <tbody>
+        <% queue.forEach(t => { %>
+          <tr onclick="window.location='/tickets/<%= t.id %>'" class="clickable">
+            <td><%= t.ticket_number %></td>
+            <td><%= t.title %></td>
+            <td><%= t.requester_name %></td>
+            <td><%= t.department_name || '—' %></td>
+            <td><%- include('../partials/priority_badge', { priority: t.priority }) %></td>
+            <td><%- include('../partials/status_badge', { status: t.status }) %></td>
+            <td><%= t.assignee_name || '—' %></td>
+            <td class="muted small"><%= helpers.timeAgo(t.created_at) %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Recent Activity</h3>
+  <ul class="activity-feed">
+    <% recentActivity.forEach(a => { %>
+      <li>
+        <span class="badge badge-muted"><%= a.action %></span>
+        <a href="/tickets/<%= a.ticket_id %>"><%= a.ticket_number %></a>
+        <span class="muted">· <%= a.detail || '' %> · by <%= a.user_name || 'System' %> · <%= helpers.timeAgo(a.created_at) %></span>
+      </li>
+    <% }) %>
+  </ul>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const cat = <%- JSON.stringify(byCategory) %>;
+    const dept = <%- JSON.stringify(byDepartment) %>;
+    if (window.makeBarChart) {
+      makeBarChart('catChart', cat.map(x=>x.name), cat.map(x=>x.c));
+      makeBarChart('deptChart', dept.map(x=>x.name), dept.map(x=>x.c));
+    }
+  });
+</script>
+
+<%- include('../partials/footer') %>

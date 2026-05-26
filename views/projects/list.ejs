@@ -1,0 +1,68 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+<% if (['admin','it_staff'].includes(currentUser.role)) { %>
+    <a href="/projects/new" class="btn btn-primary">＋ New Project</a>
+  <% } %>
+</div>
+
+<div class="grid stat-grid">
+  <div class="stat-card"><div class="stat-label">Total</div><div class="stat-value"><%= summary.total %></div></div>
+  <div class="stat-card accent-blue"><div class="stat-label">Ongoing</div><div class="stat-value"><%= summary.ongoing %></div></div>
+  <div class="stat-card accent-red"><div class="stat-label">Delayed</div><div class="stat-value"><%= summary.delayed %></div></div>
+  <div class="stat-card accent-green"><div class="stat-label">Completed</div><div class="stat-value"><%= summary.completed %></div></div>
+</div>
+
+<form method="GET" action="/projects" class="filter-bar">
+  <input type="search" name="search" placeholder="Search projects…" value="<%= filters.search || '' %>">
+  <select name="status">
+    <option value="">All statuses</option>
+    <% PROJECT_STATUSES.forEach(s => { %>
+      <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option>
+    <% }) %>
+  </select>
+  <button type="submit" class="btn btn-primary">Filter</button>
+  <a href="/projects" class="btn btn-link">Reset</a>
+</form>
+
+<div class="card">
+  <% if (projects.length === 0) { %>
+    <div class="empty-state">
+      <p>No projects yet.</p>
+      <% if (['admin','it_staff'].includes(currentUser.role)) { %>
+        <a href="/projects/new" class="btn btn-primary">Create your first project</a>
+      <% } %>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Project</th><th>Department</th><th>Owner</th>
+            <th>Status</th><th>Priority</th><th>Progress</th>
+            <th>Tasks</th><th>Target</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% projects.forEach(p => { %>
+            <tr onclick="window.location='/projects/<%= p.id %>'" class="clickable">
+              <td><strong><%= p.name %></strong></td>
+              <td><%= p.department_name || '—' %></td>
+              <td><%= p.owner_name || '—' %></td>
+              <td><%- include('../partials/status_badge', { status: p.status }) %></td>
+              <td><%- include('../partials/priority_badge', { priority: p.priority }) %></td>
+              <td>
+                <div class="progress"><div class="progress-bar" style="width: <%= p.progress %>%"></div></div>
+                <small class="muted"><%= p.progress %>%</small>
+              </td>
+              <td class="muted small"><%= p.tasks_done %> / <%= p.tasks_total %></td>
+              <td class="muted small"><%= p.target_date || '—' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>

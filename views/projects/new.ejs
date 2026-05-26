@@ -1,0 +1,67 @@
+<%- include('../partials/header') %>
+
+<div class="page-header">
+<a href="/projects" class="btn btn-link">← Back</a>
+</div>
+
+<div class="card narrow-card">
+  <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+  <form method="POST" action="/projects" class="form">
+    <label>Project name <span class="req">*</span>
+      <input type="text" name="name" required value="<%= values.name || '' %>">
+    </label>
+    <label>Description
+      <textarea name="description" rows="4"><%= values.description || '' %></textarea>
+    </label>
+    <div class="form-row">
+      <label>Department
+        <select name="department_id">
+          <option value="">—</option>
+          <% departments.forEach(d => { %>
+            <option value="<%= d.id %>" <%= String(values.department_id) === String(d.id) ? 'selected' : '' %>><%= d.name %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Project owner
+        <select name="owner_id">
+          <% users.forEach(u => { %>
+            <option value="<%= u.id %>" <%= String(values.owner_id || currentUser.id) === String(u.id) ? 'selected' : '' %>><%= u.full_name %></option>
+          <% }) %>
+        </select>
+      </label>
+    </div>
+    <div class="form-row">
+      <label>Status
+        <select name="status">
+          <% PROJECT_STATUSES.forEach(s => { %>
+            <option value="<%= s %>" <%= (values.status || 'Planned') === s ? 'selected' : '' %>><%= s %></option>
+          <% }) %>
+        </select>
+      </label>
+      <label>Priority
+        <select name="priority">
+          <% PRIORITIES.forEach(p => { %>
+            <option value="<%= p %>" <%= (values.priority || 'Medium') === p ? 'selected' : '' %>><%= p %></option>
+          <% }) %>
+        </select>
+      </label>
+    </div>
+    <div class="form-row">
+      <label>Start date
+        <input type="date" name="start_date" value="<%= values.start_date || '' %>">
+      </label>
+      <label>Target completion
+        <input type="date" name="target_date" value="<%= values.target_date || '' %>">
+      </label>
+    </div>
+    <label>Remarks
+      <textarea name="remarks" rows="3"><%= values.remarks || '' %></textarea>
+    </label>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Create Project</button>
+      <a href="/projects" class="btn btn-secondary">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<%- include('../partials/footer') %>

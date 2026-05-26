@@ -1,0 +1,31 @@
+<header class="topbar">
+  <button class="icon-btn menu-toggle" id="menuToggle" aria-label="Toggle menu">☰</button>
+  <h1 class="page-title"><%= title || 'Dashboard' %></h1>
+
+  <div class="topbar-right">
+    <button class="icon-btn" id="themeToggle" aria-label="Toggle theme" title="Toggle dark mode">🌙</button>
+    <% if (currentUser && ['admin','it_staff'].includes(currentUser.role)) { %>
+      <% const _nc = (typeof notifCount !== 'undefined' ? notifCount : 0); %>
+      <a href="/notifications" class="icon-btn notif-btn" title="Notifications">
+        🔔
+        <% if (_nc > 0) { %>
+          <span class="notif-badge"><%= _nc > 99 ? '99+' : _nc %></span>
+        <% } %>
+      </a>
+    <% } %>
+    <div class="user-menu">
+      <button class="user-btn" id="userMenuBtn">
+        <span class="avatar"><%= currentUser.full_name.charAt(0).toUpperCase() %></span>
+        <span class="user-info">
+          <span class="user-name"><%= currentUser.full_name %></span>
+          <span class="user-role"><%= currentUser.role.replace('_',' ') %></span>
+        </span>
+        <span class="caret">▾</span>
+      </button>
+      <div class="user-dropdown" id="userDropdown" hidden>
+        <a href="/account">My Account</a>
+        <form method="POST" action="/logout"><button type="submit">Sign out</button></form>
+      </div>
+    </div>
+  </div>
+</header>
