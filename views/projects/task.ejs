@@ -1,0 +1,166 @@
+<%- include('../partials/header') %>
+
+<%
+  const today = new Date().toISOString().slice(0, 10);
+  const isOverdue = task.due_date && task.due_date < today && task.status !== 'Completed' && task.status !== 'Cancelled';
+  const nextStates = {
+    'Pending':     [{ status: 'In Progress', label: '▶ Start Task',     cls: 'btn-primary' }],
+    'In Progress': [{ status: 'Completed',   label: '✓ Mark Complete',  cls: 'btn-success' },
+                   { status: 'Pending',      label: '↩ Move to Pending', cls: 'btn-secondary' }],
+    'Completed':   [{ status: 'In Progress', label: '↩ Reopen',         cls: 'btn-secondary' }],
+    'Cancelled':   [{ status: 'Pending',     label: '↩ Reopen',         cls: 'btn-secondary' }],
+  }[task.status] || [];
+%>
+
+<div class="page-header">
+  <div>
+    <div class="muted small"><a href="/projects/<%= project.id %>">← <%= project.name %></a></div>
+    <div class="meta-row" style="margin-top:6px;">
+      <%- include('../partials/status_badge', { status: task.status }) %>
+      <% if (isOverdue) { %>
+        <span class="badge" style="background:#fdecea;color:#c62828;">Overdue</span>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<div class="grid view-grid">
+  <!-- ── Left column ── -->
+  <div class="main-col">
+
+    <!-- Description -->
+    <div class="card">
+      <h3>Description</h3>
+      <p class="prewrap"><%= task.description || '<span class="muted">No description provided.</span>' %></p>
+    </div>
+
+    <!-- Progress Notes / Comments -->
+    <div class="card">
+      <div class="card-header">
+        <h3>Progress Notes</h3>
+        <span class="badge badge-muted"><%= comments.length %></span>
+      </div>
+
+      <% if (comments.length === 0) { %>
+        <p class="muted" style="margin-bottom:16px;">No progress notes yet.
+          <% if (canUpdateStatus) { %>Add the first one below.<% } %>
+        </p>
+      <% } else { %>
+        <ul class="comment-list" style="margin-bottom:16px;">
+          <% comments.forEach(c => { %>
+            <li class="comment-item">
+              <div class="comment-meta">
+                <strong><%= c.author_name %></strong>
+                <span class="muted small" style="margin-left:8px;"><%= helpers.timeAgo(c.created_at) %></span>
+                <span class="muted small" style="margin-left:4px;">· <%= helpers.fmtDate(c.created_at) %></span>
+              </div>
+              <div class="comment-body prewrap"><%= c.comment %></div>
+            </li>
+          <% }) %>
+        </ul>
+      <% } %>
+
+      <% if (canUpdateStatus) { %>
+        <form method="POST" action="/projects/<%= project.id %>/tasks/<%= task.id %>/comment" class="form compact">
+          <label>Add progress note
+            <textarea name="comment" rows="4"
+              placeholder="Describe what you did, any blockers, findings, or next steps..."
+              required></textarea>
+          </label>
+          <button type="submit" class="btn btn-primary">Post Note</button>
+        </form>
+      <% } else { %>
+        <p class="muted small">Only the assigned person or project owner can add progress notes.</p>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- ── Right column ── -->
+  <aside class="side-col">
+
+    <!-- Details + Status Actions -->
+    <div class="card">
+      <h3>Task Details</h3>
+      <dl class="data-list">
+        <dt>Status</dt>
+        <dd><%- include('../partials/status_badge', { status: task.status }) %></dd>
+        <dt>Assignee</dt>
+        <dd>
+          <% if (task.assignee_name) { %>
+            <span class="assignee-chip"><%= task.assignee_name %></span>
+          <% } else { %>
+            <span class="muted">— Unassigned —</span>
+          <% } %>
+        </dd>
+        <dt>Due date</dt>
+        <dd class="<%= isOverdue ? 'text-danger' : '' %>">
+          <%= task.due_date || '—' %>
+          <% if (isOverdue) { %><span class="x-small"> Overdue</span><% } %>
+        </dd>
+        <% if (task.completed_at) { %>
+          <dt>Completed</dt>
+          <dd><%= helpers.fmtDate(task.completed_at) %></dd>
+        <% } %>
+        <dt>Project</dt>
+        <dd><a href="/projects/<%= project.id %>"><%= project.name %></a></dd>
+      </dl>
+
+      <% if (canUpdateStatus && nextStates.length > 0) { %>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);">
+          <div class="muted small" style="margin-bottom:8px;">Update status</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <% nextStates.forEach(ns => { %>
+              <form method="POST" action="/projects/<%= project.id %>/tasks/<%= task.id %>/status">
+                <button type="submit" name="status" value="<%= ns.status %>"
+                        class="btn <%= ns.cls %> btn-small"><%= ns.label %></button>
+              </form>
+            <% }) %>
+          </div>
+        </div>
+      <% } %>
+    </div>
+
+    <!-- Edit Task (admin / project owner only) -->
+    <% if (canEditTask) { %>
+      <div class="card">
+        <details>
+          <summary class="btn btn-secondary btn-block">Edit task</summary>
+          <form method="POST" action="/projects/<%= project.id %>/tasks/<%= task.id %>/update"
+                class="form compact mt8">
+            <label>Title
+              <input type="text" name="title" value="<%= task.title %>" required>
+            </label>
+            <label>Description
+              <textarea name="description" rows="3"><%= task.description || '' %></textarea>
+            </label>
+            <label>Assigned to
+              <select name="assigned_to">
+                <option value="">— Unassigned —</option>
+                <% users.forEach(u => { %>
+                  <option value="<%= u.id %>" <%= task.assigned_to === u.id ? 'selected' : '' %>><%= u.full_name %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label>Status
+              <select name="status">
+                <% ['Pending','In Progress','Completed','Cancelled'].forEach(s => { %>
+                  <option value="<%= s %>" <%= task.status === s ? 'selected' : '' %>><%= s %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label>Due date
+              <input type="date" name="due_date" value="<%= task.due_date || '' %>">
+            </label>
+            <button type="submit" class="btn btn-primary btn-block">Save Changes</button>
+          </form>
+          <form method="POST" action="/projects/<%= project.id %>/tasks/<%= task.id %>/delete"
+                class="mt8" onsubmit="return confirm('Delete this task?');">
+            <button type="submit" class="btn btn-danger btn-block">Delete task</button>
+          </form>
+        </details>
+      </div>
+    <% } %>
+  </aside>
+</div>
+
+<%- include('../partials/footer') %>

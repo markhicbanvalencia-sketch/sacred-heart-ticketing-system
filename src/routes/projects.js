@@ -123,6 +123,19 @@ function requireOwnerOrAdmin(req, res, next) {
   return res.status(403).render('error', { title: 'Forbidden', message: 'Only the project owner or an admin can do that.' });
 }
 
+// Admin, project owner, OR the IT staff assigned to this specific task
+function requireTaskParticipant(req, res, next) {
+  if (req.user.role === 'admin') return next();
+  const project = db.prepare('SELECT owner_id FROM projects WHERE id = ?').get(req.params.id);
+  if (!project) return res.status(404).render('error', { title: 'Not Found', message: 'Project not found.' });
+  if (project.owner_id === req.user.id) return next();
+  const task = db.prepare('SELECT assigned_to FROM project_tasks WHERE id = ? AND project_id = ?')
+    .get(req.params.taskId, req.params.id);
+  if (!task) return res.status(404).render('error', { title: 'Not Found', message: 'Task not found.' });
+  if (task.assigned_to === req.user.id) return next();
+  return res.status(403).render('error', { title: 'Forbidden', message: "You are not assigned to this task." });
+}
+
 // ---- UPDATE PROJECT ----
 router.post('/:id/update', requireLogin, requireOwnerOrAdmin, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ?').get(req.params.id);
@@ -148,6 +161,57 @@ router.post('/:id/update', requireLogin, requireOwnerOrAdmin, (req, res) => {
   );
   recalcProgress(p.id);
   res.redirect(`/projects/${p.id}`);
+});
+
+// ---- TASK DETAIL ----
+router.get('/:id/tasks/:taskId', requireLogin, requireRole('admin', 'it_staff'), (req, res) => {
+  const project = db.prepare(`
+    SELECT p.*, u.full_name AS owner_name
+    FROM projects p LEFT JOIN users u ON u.id = p.owner_id
+    WHERE p.id = ?
+  `).get(req.params.id);
+  if (!project) return res.status(404).render('error', { title: 'Not Found', message: 'Project not found.' });
+
+  const task = db.prepare(`
+    SELECT t.*, u.full_name AS assignee_name
+    FROM project_tasks t LEFT JOIN users u ON u.id = t.assigned_to
+    WHERE t.id = ? AND t.project_id = ?
+  `).get(req.params.taskId, req.params.id);
+  if (!task) return res.status(404).render('error', { title: 'Not Found', message: 'Task not found.' });
+
+  const comments = db.prepare(`
+    SELECT c.*, u.full_name AS author_name
+    FROM project_task_comments c
+    JOIN users u ON u.id = c.user_id
+    WHERE c.task_id = ?
+    ORDER BY c.created_at ASC
+  `).all(task.id);
+
+  const users = db.prepare('SELECT id, full_name FROM users WHERE is_active = 1 ORDER BY full_name').all();
+
+  const isOwner    = project.owner_id === req.user.id;
+  const isAssigned = task.assigned_to === req.user.id;
+  const canEditTask      = req.user.role === 'admin' || isOwner;
+  const canUpdateStatus  = req.user.role === 'admin' || isOwner || isAssigned;
+
+  res.render('projects/task', {
+    title: task.title,
+    project, task, comments, users,
+    canEditTask, canUpdateStatus,
+    PROJECT_STATUSES, PRIORITIES,
+  });
+});
+
+// ---- TASK COMMENT ----
+router.post('/:id/tasks/:taskId/comment', requireLogin, requireTaskParticipant, (req, res) => {
+  const { comment } = req.body;
+  if (comment && comment.trim()) {
+    db.prepare(`
+      INSERT INTO project_task_comments (task_id, project_id, user_id, comment)
+      VALUES (?, ?, ?, ?)
+    `).run(req.params.taskId, req.params.id, req.user.id, comment.trim());
+  }
+  res.redirect(`/projects/${req.params.id}/tasks/${req.params.taskId}`);
 });
 
 // ---- TASKS ----
@@ -184,7 +248,7 @@ router.post('/:id/tasks/:taskId/update', requireLogin, requireOwnerOrAdmin, (req
   res.redirect(`/projects/${req.params.id}`);
 });
 
-router.post('/:id/tasks/:taskId/status', requireLogin, requireOwnerOrAdmin, (req, res) => {
+router.post('/:id/tasks/:taskId/status', requireLogin, requireTaskParticipant, (req, res) => {
   const { status } = req.body;
   const valid = ['Pending', 'In Progress', 'Completed', 'Cancelled'];
   if (!valid.includes(status)) return res.redirect(`/projects/${req.params.id}`);

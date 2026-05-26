@@ -155,6 +155,15 @@ async function start() {
   // Add resolution_notes column if it doesn't exist yet
   try { db.exec("ALTER TABLE tickets ADD COLUMN resolution_notes TEXT"); } catch {}
 
+  db.exec(`CREATE TABLE IF NOT EXISTS project_task_comments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id    INTEGER NOT NULL,
+    project_id INTEGER NOT NULL,
+    user_id    INTEGER NOT NULL,
+    comment    TEXT    NOT NULL,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+  )`);
+
   // Performance indexes — safe to re-run (IF NOT EXISTS)
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_tickets_created_at     ON tickets(created_at);

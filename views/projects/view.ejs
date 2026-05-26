@@ -58,16 +58,17 @@
                 <th>Assignee</th>
                 <th>Status</th>
                 <th>Due</th>
-                <% if (canEdit) { %><th>Actions</th><% } %>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               <% tasks.forEach(t => {
                 const isOverdue = t.due_date && t.due_date < today && t.status !== 'Completed' && t.status !== 'Cancelled';
+                const canActOnTask = canEdit || (t.assigned_to === currentUser.id);
               %>
                 <tr class="<%= t.status === 'Completed' ? 'task-done' : '' %>">
                   <td>
-                    <strong><%= t.title %></strong>
+                    <a href="/projects/<%= project.id %>/tasks/<%= t.id %>" style="font-weight:600;color:inherit;text-decoration:none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'"><%= t.title %></a>
                     <% if (t.description) { %><div class="muted small"><%= t.description %></div><% } %>
                     <% if (t.status === 'Completed' && t.completed_at) { %>
                       <div class="muted x-small">Completed <%= helpers.timeAgo(t.completed_at) %></div>
@@ -85,7 +86,7 @@
                     <%= t.due_date || '—' %>
                     <% if (isOverdue) { %><div class="x-small">Overdue</div><% } %>
                   </td>
-                  <% if (canEdit) { %>
+                  <% if (canActOnTask) { %>
                     <td class="task-actions">
                       <% if (t.status === 'Pending') { %>
                         <form method="POST" action="/projects/<%= project.id %>/tasks/<%= t.id %>/status">
@@ -103,32 +104,35 @@
                           <button type="submit" class="btn btn-secondary btn-small">↩ Reopen</button>
                         </form>
                       <% } %>
-                      <details class="inline">
-                        <summary class="btn btn-link small">Edit</summary>
-                        <form method="POST" action="/projects/<%= project.id %>/tasks/<%= t.id %>/update" class="form compact mt8">
-                          <input type="text" name="title" value="<%= t.title %>">
-                          <textarea name="description" rows="2"><%= t.description || '' %></textarea>
-                          <select name="status">
-                            <% ['Pending','In Progress','Completed','Cancelled'].forEach(s => { %>
-                              <option value="<%= s %>" <%= t.status === s ? 'selected' : '' %>><%= s %></option>
-                            <% }) %>
-                          </select>
-                          <select name="assigned_to">
-                            <option value="">— Unassigned —</option>
-                            <% users.forEach(u => { %>
-                              <option value="<%= u.id %>" <%= t.assigned_to === u.id ? 'selected' : '' %>><%= u.full_name %></option>
-                            <% }) %>
-                          </select>
-                          <input type="date" name="due_date" value="<%= t.due_date || '' %>">
-                          <div class="form-row">
-                            <button type="submit" class="btn btn-primary btn-small">Save</button>
-                          </div>
-                        </form>
-                        <form method="POST" action="/projects/<%= project.id %>/tasks/<%= t.id %>/delete" class="mt8"
-                              onsubmit="return confirm('Delete this task?');">
-                          <button type="submit" class="btn btn-danger btn-small">Delete task</button>
-                        </form>
-                      </details>
+                      <a href="/projects/<%= project.id %>/tasks/<%= t.id %>" class="btn btn-link small">Notes</a>
+                      <% if (canEdit) { %>
+                        <details class="inline">
+                          <summary class="btn btn-link small">Edit</summary>
+                          <form method="POST" action="/projects/<%= project.id %>/tasks/<%= t.id %>/update" class="form compact mt8">
+                            <input type="text" name="title" value="<%= t.title %>">
+                            <textarea name="description" rows="2"><%= t.description || '' %></textarea>
+                            <select name="status">
+                              <% ['Pending','In Progress','Completed','Cancelled'].forEach(s => { %>
+                                <option value="<%= s %>" <%= t.status === s ? 'selected' : '' %>><%= s %></option>
+                              <% }) %>
+                            </select>
+                            <select name="assigned_to">
+                              <option value="">— Unassigned —</option>
+                              <% users.forEach(u => { %>
+                                <option value="<%= u.id %>" <%= t.assigned_to === u.id ? 'selected' : '' %>><%= u.full_name %></option>
+                              <% }) %>
+                            </select>
+                            <input type="date" name="due_date" value="<%= t.due_date || '' %>">
+                            <div class="form-row">
+                              <button type="submit" class="btn btn-primary btn-small">Save</button>
+                            </div>
+                          </form>
+                          <form method="POST" action="/projects/<%= project.id %>/tasks/<%= t.id %>/delete" class="mt8"
+                                onsubmit="return confirm('Delete this task?');">
+                            <button type="submit" class="btn btn-danger btn-small">Delete task</button>
+                          </form>
+                        </details>
+                      <% } %>
                     </td>
                   <% } %>
                 </tr>
