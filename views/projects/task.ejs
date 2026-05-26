@@ -31,7 +31,11 @@
     <!-- Description -->
     <div class="card">
       <h3>Description</h3>
-      <p class="prewrap"><%= task.description || '<span class="muted">No description provided.</span>' %></p>
+      <% if (task.description) { %>
+        <p class="prewrap"><%= task.description %></p>
+      <% } else { %>
+        <p class="muted">No description provided.</p>
+      <% } %>
     </div>
 
     <!-- Progress Notes / Comments -->

@@ -5,6 +5,8 @@ const DB_PATH = path.join(__dirname, '..', '..', 'data', 'app.db');
 
 let _raw = null;
 let _saveTimer = null;
+const _stmtCache = new Map(); // sql string → sql.js Statement (reused, not freed)
+let _lastRowIdStmt = null;    // cached "SELECT last_insert_rowid()"
 
 function save() {
   if (!_raw) return;
@@ -15,7 +17,17 @@ function save() {
 
 function scheduleSave() {
   if (_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(save, 100);
+  _saveTimer = setTimeout(save, 1000); // 1 s debounce — reduces disk I/O without risking data loss
+}
+
+// Return a cached compiled statement; reset it so it's ready for new params
+function _getCached(sql) {
+  if (!_stmtCache.has(sql)) {
+    _stmtCache.set(sql, _raw.prepare(sql));
+  }
+  const stmt = _stmtCache.get(sql);
+  stmt.reset();
+  return stmt;
 }
 
 function toSqlJsParams(args) {
@@ -44,48 +56,34 @@ class Statement {
 
   run(...args) {
     const params = toSqlJsParams(args);
-    const stmt = _raw.prepare(this._sql);
-    try {
-      if (params !== null) stmt.bind(params);
-      stmt.step();
-    } finally {
-      stmt.free();
-    }
+    const stmt = _getCached(this._sql);
+    if (params !== null) stmt.bind(params);
+    stmt.step();
     const changes = _raw.getRowsModified();
-    const s2 = _raw.prepare('SELECT last_insert_rowid()');
-    try {
-      s2.step();
-      const lastInsertRowid = s2.get()[0] ?? 0;
-      scheduleSave();
-      return { changes, lastInsertRowid };
-    } finally {
-      s2.free();
-    }
+    // Reuse the last_insert_rowid statement too
+    if (!_lastRowIdStmt) _lastRowIdStmt = _raw.prepare('SELECT last_insert_rowid()');
+    _lastRowIdStmt.reset();
+    _lastRowIdStmt.step();
+    const lastInsertRowid = _lastRowIdStmt.get()[0] ?? 0;
+    scheduleSave();
+    return { changes, lastInsertRowid };
   }
 
   get(...args) {
     const params = toSqlJsParams(args);
-    const stmt = _raw.prepare(this._sql);
-    try {
-      if (params !== null) stmt.bind(params);
-      if (stmt.step()) return stmt.getAsObject();
-      return undefined;
-    } finally {
-      stmt.free();
-    }
+    const stmt = _getCached(this._sql);
+    if (params !== null) stmt.bind(params);
+    if (stmt.step()) return stmt.getAsObject();
+    return undefined;
   }
 
   all(...args) {
     const params = toSqlJsParams(args);
-    const stmt = _raw.prepare(this._sql);
-    try {
-      if (params !== null) stmt.bind(params);
-      const rows = [];
-      while (stmt.step()) rows.push(stmt.getAsObject());
-      return rows;
-    } finally {
-      stmt.free();
-    }
+    const stmt = _getCached(this._sql);
+    if (params !== null) stmt.bind(params);
+    const rows = [];
+    while (stmt.step()) rows.push(stmt.getAsObject());
+    return rows;
   }
 }
 
@@ -122,6 +120,8 @@ const db = {
   close() {
     if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
     save();
+    _stmtCache.clear();
+    _lastRowIdStmt = null;
     if (_raw) { _raw.close(); _raw = null; }
   },
 };
@@ -130,6 +130,8 @@ async function init() {
   const initSqlJs = require('sql.js');
   const SQL = await initSqlJs();
   const fileData = fs.existsSync(DB_PATH) ? fs.readFileSync(DB_PATH) : null;
+  _stmtCache.clear();
+  _lastRowIdStmt = null;
   _raw = fileData ? new SQL.Database(fileData) : new SQL.Database();
   _raw.run('PRAGMA foreign_keys = ON');
   return db;

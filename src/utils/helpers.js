@@ -21,14 +21,30 @@ function generateTicketNumber() {
   return `${prefix}-${year}-${String(next).padStart(5, '0')}`;
 }
 
+// Settings cache — loaded once, updated in-place on setSetting()
+let _settingsCache = null;
+function _loadSettingsCache() {
+  _settingsCache = {};
+  try {
+    for (const r of db.prepare('SELECT key, value FROM settings').all()) {
+      _settingsCache[r.key] = r.value;
+    }
+  } catch {}
+}
+
 function getSetting(key) {
-  const r = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
-  return r ? r.value : null;
+  if (!_settingsCache) _loadSettingsCache();
+  return _settingsCache[key] ?? null;
 }
 
 function setSetting(key, value) {
   db.prepare(`INSERT INTO settings (key, value) VALUES (?, ?)
               ON CONFLICT(key) DO UPDATE SET value = excluded.value`).run(key, String(value ?? ''));
+  if (_settingsCache) _settingsCache[key] = String(value ?? '');
+}
+
+function invalidateSettingsCache() {
+  _settingsCache = null;
 }
 
 function fmtDate(d) {
@@ -75,6 +91,7 @@ module.exports = {
   generateTicketNumber,
   getSetting,
   setSetting,
+  invalidateSettingsCache,
   fmtDate,
   fmtDateShort,
   timeAgo,
