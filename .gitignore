@@ -28,3 +28,6 @@ desktop.ini
 # Logs
 *.log
 npm-debug.log*
+
+# Installer output (built .exe, not source)
+installer/dist/
