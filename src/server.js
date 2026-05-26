@@ -126,19 +126,27 @@ async function start() {
   `);
 
   app.listen(PORT, HOST, () => {
-    console.log('');
-    console.log('==================================================');
-    console.log('  MIS Ticketing System started');
-    console.log('==================================================');
-    console.log(`  Local:    http://localhost:${PORT}`);
-
     const nets = require('os').networkInterfaces();
+    const lanIPs = [];
     for (const name of Object.keys(nets)) {
       for (const net of nets[name]) {
-        if (net.family === 'IPv4' && !net.internal) {
-          console.log(`  Network:  http://${net.address}:${PORT}`);
-        }
+        if (net.family === 'IPv4' && !net.internal) lanIPs.push(net.address);
       }
+    }
+
+    console.log('');
+    console.log('==================================================');
+    console.log('  Sacred Heart MIS  —  Server started');
+    console.log('==================================================');
+    console.log(`  Local (this PC):  http://localhost:${PORT}`);
+    if (lanIPs.length) {
+      console.log('');
+      console.log('  Network (share these with your colleagues):');
+      for (const ip of lanIPs) {
+        console.log(`    http://${ip}:${PORT}`);
+      }
+    } else {
+      console.log('  Network: no LAN IP detected (check your Wi-Fi/LAN)');
     }
     console.log('');
     console.log('  Default logins:');

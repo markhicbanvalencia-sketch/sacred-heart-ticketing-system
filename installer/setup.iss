@@ -76,12 +76,17 @@ Name: "{userstartup}\Sacred Heart MIS Server"; Filename: "wscript.exe"; Paramete
 ; 1. Initialise the database (first-time setup)
 Filename: "node.exe"; Parameters: "scripts\init-db.js"; WorkingDir: "{app}"; StatusMsg: "Setting up database..."; Flags: waituntilterminated runhidden
 
-; 2. Launch app in browser after install (optional, user can untick)
+; 2. Open port 3000 in Windows Firewall so LAN users can reach the server
+Filename: "netsh.exe"; Parameters: "advfirewall firewall add rule name=""Sacred Heart MIS"" dir=in action=allow protocol=TCP localport=3000"; WorkingDir: "{app}"; StatusMsg: "Configuring firewall..."; Flags: waituntilterminated runhidden
+
+; 3. Launch app in browser after install (optional, user can untick)
 Filename: "wscript.exe"; Parameters: """{app}\scripts\start-silent.vbs"""; WorkingDir: "{app}"; Description: "Launch {#AppName} now"; Flags: postinstall nowait skipifsilent shellexec
 
 [UninstallRun]
 ; Kill the server process before uninstalling
 Filename: "{app}\scripts\stop.bat"; Flags: runhidden waituntilterminated
+; Remove the firewall rule
+Filename: "netsh.exe"; Parameters: "advfirewall firewall delete rule name=""Sacred Heart MIS"""; Flags: runhidden waituntilterminated
 
 [Code]
 { ------------------------------------------------------------------ }

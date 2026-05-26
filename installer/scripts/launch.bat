@@ -13,6 +13,9 @@ if %errorlevel% == 0 (
 :: Create data folder if it doesn't exist
 if not exist "data" mkdir data
 
+:: Ensure Windows Firewall allows port 3000 (silent — ok if rule already exists)
+netsh advfirewall firewall add rule name="Sacred Heart MIS" dir=in action=allow protocol=TCP localport=3000 >nul 2>&1
+
 :: Start server silently in background
 wscript.exe "%~dp0start-silent.vbs"
 
