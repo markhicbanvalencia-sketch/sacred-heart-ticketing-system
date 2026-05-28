@@ -13,21 +13,23 @@ function loadUser(req, res, next) {
   delete req.session.flash;
 
   if (req.session && req.session.userId) {
-    const user = db.prepare(`
-      SELECT u.id, u.username, u.full_name, u.email, u.is_active,
-             r.name AS role, d.name AS department, u.department_id
-      FROM users u
-      JOIN roles r ON r.id = u.role_id
-      LEFT JOIN departments d ON d.id = u.department_id
-      WHERE u.id = ?
-    `).get(req.session.userId);
+    try {
+      const user = db.prepare(`
+        SELECT u.id, u.username, u.full_name, u.email, u.is_active,
+               r.name AS role, d.name AS department, u.department_id
+        FROM users u
+        JOIN roles r ON r.id = u.role_id
+        LEFT JOIN departments d ON d.id = u.department_id
+        WHERE u.id = ?
+      `).get(req.session.userId);
 
-    if (user && user.is_active) {
-      res.locals.currentUser = user;
-      req.user = user;
-    } else {
-      req.session.destroy(() => {});
-    }
+      if (user && user.is_active) {
+        res.locals.currentUser = user;
+        req.user = user;
+      } else {
+        req.session.destroy(() => {});
+      }
+    } catch { req.session.destroy(() => {}); }
   }
   next();
 }

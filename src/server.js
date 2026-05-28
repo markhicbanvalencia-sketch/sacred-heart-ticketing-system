@@ -80,12 +80,20 @@ function _startUpdateChecker() {
 }
 
 app.use((req, res, next) => {
-  res.locals.helpers = helpers;
-  res.locals.siteName = helpers.getSetting('site_name') || 'MIS Ticketing System';
-  res.locals.orgName = helpers.getSetting('organization_name') || '';
-  res.locals.path = req.path;
-  res.locals.notifCount = 0;
+  // Set safe defaults FIRST — error pages depend on these being defined
+  res.locals.helpers      = helpers;
+  res.locals.siteName     = 'MIS Ticketing System';
+  res.locals.orgName      = '';
+  res.locals.path         = req.path;
+  res.locals.notifCount   = 0;
   res.locals.updateAvailable = false;
+
+  // Overwrite defaults with real values (wrapped so any DB error can't kill the page)
+  try {
+    res.locals.siteName = helpers.getSetting('site_name') || 'MIS Ticketing System';
+    res.locals.orgName  = helpers.getSetting('organization_name') || '';
+  } catch {}
+
   if (req.user && ['admin', 'it_staff'].includes(req.user.role)) {
     try {
       res.locals.notifCount = db.prepare(
