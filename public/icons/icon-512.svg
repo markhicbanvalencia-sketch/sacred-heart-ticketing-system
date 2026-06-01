@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="80" fill="#5c6bc0"/>
+  <text x="256" y="200" font-size="96" font-weight="bold" font-family="Arial,sans-serif"
+        text-anchor="middle" fill="white">Sacred</text>
+  <text x="256" y="310" font-size="96" font-weight="bold" font-family="Arial,sans-serif"
+        text-anchor="middle" fill="white">Heart</text>
+  <text x="256" y="410" font-size="60" font-family="Arial,sans-serif"
+        text-anchor="middle" fill="rgba(255,255,255,0.75)">MIS</text>
+</svg>

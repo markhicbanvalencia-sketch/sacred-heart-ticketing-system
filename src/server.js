@@ -29,6 +29,15 @@ app.set('views', path.join(__dirname, '..', 'views'));
 app.use('/static', express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
+// --- PWA files (must be served from root path so the SW scope covers the whole app) ---
+app.get('/manifest.json', (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'manifest.json')));
+app.get('/offline.html',  (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'offline.html')));
+app.get('/sw.js', (_req, res) => {
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.setHeader('Content-Type', 'application/javascript');
+  res.sendFile(path.join(__dirname, '..', 'public', 'sw.js'));
+});
+
 // --- Parsers ---
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.json({ limit: '10mb' }));

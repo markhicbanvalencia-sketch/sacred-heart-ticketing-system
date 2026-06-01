@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline — Sacred Heart MIS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f4f5f7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      color: #333;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 48px 40px;
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 2px 16px rgba(0,0,0,.08);
+    }
+    .icon { font-size: 64px; margin-bottom: 20px; }
+    h1 { font-size: 1.5rem; margin-bottom: 10px; color: #5c6bc0; }
+    p  { color: #666; font-size: .95rem; line-height: 1.6; margin-bottom: 28px; }
+    button {
+      background: #5c6bc0;
+      color: #fff;
+      border: none;
+      padding: 12px 28px;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+    button:hover { background: #4a59b0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">📡</div>
+    <h1>You're offline</h1>
+    <p>
+      Sacred Heart MIS needs a connection to the server.<br>
+      Make sure you're connected to the office network, then try again.
+    </p>
+    <button onclick="location.reload()">Try again</button>
+  </div>
+</body>
+</html>
