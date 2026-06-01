@@ -3,25 +3,41 @@ const fs = require('fs');
 
 const DB_PATH = path.join(__dirname, '..', '..', 'data', 'app.db');
 
-let _raw = null;
+let _raw       = null;
 let _saveTimer = null;
-const _stmtCache = new Map(); // sql string → sql.js Statement (reused, not freed)
-let _lastRowIdStmt = null;    // cached "SELECT last_insert_rowid()"
+let _saving    = false; // prevent overlapping async writes
+const _stmtCache    = new Map();
+let   _lastRowIdStmt = null;
 
 function save() {
+  if (!_raw || _saving) return;
+  _saving = true;
+  const dir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  // sql.js export() frees ALL open prepared statements — clear cache first.
+  _stmtCache.clear();
+  _lastRowIdStmt = null;
+  const data = Buffer.from(_raw.export()); // WASM copy — fast, must be sync
+  // Async disk write — never blocks the event loop
+  fs.writeFile(DB_PATH, data, err => {
+    if (err) console.error('[db] save failed:', err);
+    _saving = false;
+  });
+}
+
+// Synchronous save used only during shutdown (process.exit path)
+function saveSync() {
   if (!_raw) return;
   const dir = path.dirname(DB_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  // sql.js export() frees ALL open prepared statements internally —
-  // clear our cache first so freed statements are never reused.
   _stmtCache.clear();
   _lastRowIdStmt = null;
-  fs.writeFileSync(DB_PATH, Buffer.from(_raw.export()));
+  try { fs.writeFileSync(DB_PATH, Buffer.from(_raw.export())); } catch {}
 }
 
 function scheduleSave() {
   if (_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(save, 1000); // 1 s debounce — reduces disk I/O without risking data loss
+  _saveTimer = setTimeout(save, 5000); // 5 s debounce — keeps cache warm longer
 }
 
 // Return a cached compiled statement; reset it so it's ready for new params
@@ -113,7 +129,7 @@ const db = {
       try {
         fn(...args);
         _raw.run('COMMIT');
-        save();
+        scheduleSave(); // debounced async — never blocks
       } catch (e) {
         try { _raw.run('ROLLBACK'); } catch {}
         throw e;
@@ -123,7 +139,7 @@ const db = {
 
   close() {
     if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
-    save();
+    saveSync(); // synchronous only on shutdown
     _stmtCache.clear();
     _lastRowIdStmt = null;
     if (_raw) { _raw.close(); _raw = null; }
