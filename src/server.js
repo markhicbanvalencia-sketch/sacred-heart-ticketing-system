@@ -172,6 +172,10 @@ async function start() {
     CREATE INDEX IF NOT EXISTS idx_project_tasks_assigned ON project_tasks(assigned_to);
   `);
 
+  // One deferred save 10 s after startup captures all CREATE TABLE / ALTER TABLE
+  // DDL without triggering the hang that hit the first user to connect.
+  setTimeout(() => db.scheduleSave(), 10000);
+
   _startUpdateChecker();
 
   app.listen(PORT, HOST, () => {

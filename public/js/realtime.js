@@ -11,6 +11,11 @@
   if (window.__RT_USER) {
     const src = new EventSource('/events');
 
+    // Close the connection immediately when the user navigates away.
+    // Without this, browsers queue the new page request behind the open SSE
+    // connection (HTTP/1.1 has a 6-connection-per-host limit).
+    window.addEventListener('beforeunload', function () { src.close(); });
+
     src.onmessage = function (e) {
       let data;
       try { data = JSON.parse(e.data); } catch { return; }
@@ -42,7 +47,8 @@
 
   // ── Comment polling fallback (5 s) for pages without SSE push ────────────
   if (ticketId) {
-    setInterval(fetchComments, 5000);
+    const _pollTimer = setInterval(fetchComments, 5000);
+    window.addEventListener('beforeunload', function () { clearInterval(_pollTimer); });
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────

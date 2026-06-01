@@ -3,29 +3,33 @@ const fs = require('fs');
 
 const DB_PATH = path.join(__dirname, '..', '..', 'data', 'app.db');
 
-let _raw       = null;
-let _saveTimer = null;
-let _saving    = false; // prevent overlapping async writes
-const _stmtCache    = new Map();
+let _raw         = null;
+let _saveTimer   = null;
+let _saving      = false;
+let _lastSaveAt  = 0;
+const _stmtCache     = new Map();
 let   _lastRowIdStmt = null;
 
 function save() {
   if (!_raw || _saving) return;
-  _saving = true;
+  // Skip if we saved less than 4.5 s ago — prevents back-to-back exports
+  const now = Date.now();
+  if (now - _lastSaveAt < 4500) return;
+  _saving     = true;
+  _lastSaveAt = now;
   const dir = path.dirname(DB_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  // sql.js export() frees ALL open prepared statements — clear cache first.
+  // sql.js export() frees ALL open prepared statements — clear cache first
   _stmtCache.clear();
   _lastRowIdStmt = null;
-  const data = Buffer.from(_raw.export()); // WASM copy — fast, must be sync
-  // Async disk write — never blocks the event loop
-  fs.writeFile(DB_PATH, data, err => {
+  const data = Buffer.from(_raw.export()); // WASM copy — must be sync
+  fs.writeFile(DB_PATH, data, err => {     // disk write is async — never blocks requests
     if (err) console.error('[db] save failed:', err);
     _saving = false;
   });
 }
 
-// Synchronous save used only during shutdown (process.exit path)
+// Synchronous save used only on shutdown
 function saveSync() {
   if (!_raw) return;
   const dir = path.dirname(DB_PATH);
@@ -37,7 +41,7 @@ function saveSync() {
 
 function scheduleSave() {
   if (_saveTimer) clearTimeout(_saveTimer);
-  _saveTimer = setTimeout(save, 5000); // 5 s debounce — keeps cache warm longer
+  _saveTimer = setTimeout(save, 5000);
 }
 
 // Return a cached compiled statement; reset it so it's ready for new params
@@ -114,7 +118,9 @@ const db = {
 
   exec(sql) {
     _raw.run(sql);
-    scheduleSave();
+    // No scheduleSave here — exec() is only used for startup DDL (CREATE TABLE,
+    // ALTER TABLE, CREATE INDEX). Those changes are captured by the first
+    // real write that follows, not here.
     return this;
   },
 
@@ -157,5 +163,6 @@ async function init() {
   return db;
 }
 
-db.init = init;
-module.exports = db;
+db.init         = init;
+db.scheduleSave = scheduleSave; // exposed so server.js can trigger the startup DDL save
+module.exports  = db;
