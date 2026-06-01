@@ -12,6 +12,10 @@ function save() {
   if (!_raw) return;
   const dir = path.dirname(DB_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  // sql.js export() frees ALL open prepared statements internally —
+  // clear our cache first so freed statements are never reused.
+  _stmtCache.clear();
+  _lastRowIdStmt = null;
   fs.writeFileSync(DB_PATH, Buffer.from(_raw.export()));
 }
 
