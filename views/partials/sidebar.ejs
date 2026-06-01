@@ -41,6 +41,9 @@
       <a href="/admin/audit" class="<%= path.startsWith('/admin/audit') ? 'active' : '' %>">
         <span class="ico">📜</span> Audit Log
       </a>
+      <a href="/admin/backup" class="<%= path.startsWith('/admin/backup') ? 'active' : '' %>">
+        <span class="ico">💾</span> Backup
+      </a>
       <a href="/admin/update" class="<%= path.startsWith('/admin/update') ? 'active' : '' %>" style="position:relative;">
         <span class="ico">🔄</span> System Update
         <% if (typeof updateAvailable !== 'undefined' && updateAvailable) { %>

@@ -164,5 +164,12 @@ async function init() {
 }
 
 db.init         = init;
-db.scheduleSave = scheduleSave; // exposed so server.js can trigger the startup DDL save
-module.exports  = db;
+db.scheduleSave = scheduleSave;
+// Returns a fresh Buffer snapshot of the database (clears stmt cache like all exports)
+db.exportBuffer = function () {
+  if (!_raw) return null;
+  _stmtCache.clear();
+  _lastRowIdStmt = null;
+  return Buffer.from(_raw.export());
+};
+module.exports = db;

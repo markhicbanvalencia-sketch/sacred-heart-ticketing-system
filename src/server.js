@@ -116,7 +116,8 @@ app.use('/admin', require('./routes/admin'));
 app.use('/reports', require('./routes/reports'));
 app.use('/notifications', require('./routes/notifications'));
 app.use('/events', require('./routes/events').router);
-app.use('/admin/update', require('./routes/update'));
+app.use('/admin/update',  require('./routes/update'));
+app.use('/admin/backup',  require('./routes/backup'));
 
 // --- 404 ---
 app.use((req, res) => {
