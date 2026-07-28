@@ -2,7 +2,20 @@
 const fs   = require('fs');
 const path = require('path');
 
-const appDir  = path.join(__dirname, '..');
+// Find the project root by walking up from this script looking for package.json.
+// Handles both layouts:
+//   installed (flattened by Inno Setup): {app}/scripts/write-version.js -> {app}
+//   dev source tree:                     installer/scripts/write-version.js -> project root
+function findAppDir(startDir) {
+  let dir = startDir;
+  for (let i = 0; i < 5; i++) {
+    if (fs.existsSync(path.join(dir, 'package.json'))) return dir;
+    dir = path.dirname(dir);
+  }
+  throw new Error('Could not locate project root (no package.json found above ' + startDir + ')');
+}
+
+const appDir  = findAppDir(__dirname);
 const dataDir = path.join(appDir, 'data');
 const verFile = path.join(dataDir, 'version.json');
 
