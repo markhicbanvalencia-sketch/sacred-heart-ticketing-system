@@ -65,7 +65,7 @@
       plugins: { legend: { labels: { color, font: { size: 11 } } } },
       scales: {
         x: { ticks: { color, font: { size: 11 } }, grid: { display: false } },
-        y: { ticks: { color, font: { size: 11 } }, grid: { color: isDark ? '#334155' : '#e5e7eb' }, beginAtZero: true },
+        y: { ticks: { color, font: { size: 11 }, precision: 0 }, grid: { color: isDark ? '#334155' : '#e5e7eb' }, beginAtZero: true },
       },
     };
   }
@@ -90,6 +90,55 @@
         responsive: true, maintainAspectRatio: false,
         plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 11 },
           color: document.documentElement.getAttribute('data-theme') === 'dark' ? '#cbd5e1' : '#475569' } } },
+      },
+    });
+  };
+
+  window.makeLineChart = function (id, labels, datasets) {
+    const el = document.getElementById(id);
+    if (!el || !window.Chart) return;
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const tickColor = isDark ? '#cbd5e1' : '#475569';
+    const gridColor = isDark ? '#334155' : '#e5e7eb';
+    new Chart(el, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: datasets.map(d => ({
+          label: d.label, data: d.data,
+          borderColor: d.color, backgroundColor: d.color + '26',
+          tension: .35, fill: true, borderWidth: 2, pointRadius: 2, pointHoverRadius: 4,
+        })),
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: { legend: { display: datasets.length > 1, position: 'top', align: 'end', labels: { boxWidth: 12, font: { size: 11 }, color: tickColor } } },
+        scales: {
+          x: { ticks: { color: tickColor, font: { size: 11 } }, grid: { display: false } },
+          y: { ticks: { color: tickColor, font: { size: 11 }, precision: 0 }, grid: { color: gridColor }, beginAtZero: true },
+        },
+      },
+    });
+  };
+
+  window.makeHBarChart = function (id, labels, data, colors) {
+    const el = document.getElementById(id);
+    if (!el || !window.Chart) return;
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const tickColor = isDark ? '#cbd5e1' : '#475569';
+    const gridColor = isDark ? '#334155' : '#e5e7eb';
+    new Chart(el, {
+      type: 'bar',
+      data: { labels, datasets: [{ data, backgroundColor: colors || '#4f46e5', borderRadius: 4, barThickness: 14 }] },
+      options: {
+        indexAxis: 'y',
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { beginAtZero: true, ticks: { color: tickColor, font: { size: 11 }, precision: 0 }, grid: { color: gridColor } },
+          y: { ticks: { color: tickColor, font: { size: 11 } }, grid: { display: false } },
+        },
       },
     });
   };

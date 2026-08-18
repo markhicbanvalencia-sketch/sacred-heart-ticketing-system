@@ -99,6 +99,7 @@ router.get('/dashboard/admin', requireLogin, (req, res) => {
     departments: db.prepare('SELECT COUNT(*) AS c FROM departments').get().c,
     tickets:     db.prepare('SELECT COUNT(*) AS c FROM tickets').get().c,
     open:        db.prepare("SELECT COUNT(*) AS c FROM tickets WHERE status NOT IN ('Closed','Cancelled')").get().c,
+    urgent:      db.prepare("SELECT COUNT(*) AS c FROM tickets WHERE priority = 'Urgent' AND status NOT IN ('Closed','Cancelled')").get().c,
     projects:    db.prepare('SELECT COUNT(*) AS c FROM projects').get().c,
     ongoing:     db.prepare("SELECT COUNT(*) AS c FROM projects WHERE status = 'Ongoing'").get().c,
   };
@@ -107,6 +108,45 @@ router.get('/dashboard/admin', requireLogin, (req, res) => {
   `).all();
   const projectsByStatus = db.prepare(`
     SELECT status, COUNT(*) AS c FROM projects GROUP BY status
+  `).all();
+
+  // 14-day ticket volume trend (created vs resolved)
+  const trendDays = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    trendDays.push(d.toISOString().slice(0, 10));
+  }
+  const createdRows = db.prepare(`
+    SELECT date(created_at) AS day, COUNT(*) AS c FROM tickets
+    WHERE date(created_at) >= date('now','-13 days') GROUP BY day
+  `).all();
+  const resolvedRows = db.prepare(`
+    SELECT date(resolved_at) AS day, COUNT(*) AS c FROM tickets
+    WHERE resolved_at IS NOT NULL AND date(resolved_at) >= date('now','-13 days') GROUP BY day
+  `).all();
+  const createdMap = Object.fromEntries(createdRows.map(r => [r.day, r.c]));
+  const resolvedMap = Object.fromEntries(resolvedRows.map(r => [r.day, r.c]));
+  const ticketTrend = {
+    labels:   trendDays.map(d => d.slice(5)),
+    created:  trendDays.map(d => createdMap[d] || 0),
+    resolved: trendDays.map(d => resolvedMap[d] || 0),
+  };
+
+  // Open tickets by priority (fixed order)
+  const priorityRows = db.prepare(`
+    SELECT priority, COUNT(*) AS c FROM tickets
+    WHERE status NOT IN ('Closed','Cancelled') GROUP BY priority
+  `).all();
+  const priorityMap = Object.fromEntries(priorityRows.map(r => [r.priority, r.c]));
+  const priorityBreakdown = ['Urgent', 'High', 'Medium', 'Low'].map(p => ({ priority: p, c: priorityMap[p] || 0 }));
+
+  // Department workload (open tickets)
+  const deptWorkload = db.prepare(`
+    SELECT COALESCE(d.name, 'Unassigned') AS name, COUNT(*) AS c
+    FROM tickets t LEFT JOIN departments d ON d.id = t.department_id
+    WHERE t.status NOT IN ('Closed','Cancelled')
+    GROUP BY d.name ORDER BY c DESC LIMIT 8
   `).all();
   const aging = db.prepare(`
     SELECT t.*, ru.full_name AS requester_name, au.full_name AS assignee_name,
@@ -142,7 +182,7 @@ router.get('/dashboard/admin', requireLogin, (req, res) => {
     title: 'Admin Dashboard',
     stats, ticketsByStatus, projectsByStatus, aging,
     avgHours: avgResolution.avg_hours || 0,
-    staffPerformance,
+    staffPerformance, ticketTrend, priorityBreakdown, deptWorkload,
   });
 });
 

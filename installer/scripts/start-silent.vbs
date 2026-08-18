@@ -2,7 +2,7 @@
 ' Uses start-loop.bat so the server automatically restarts after an update (exit 0)
 Dim oShell, appDir
 
-oShell  = CreateObject("WScript.Shell")
+Set oShell  = CreateObject("WScript.Shell")
 appDir  = Left(WScript.ScriptFullName, InStrRev(WScript.ScriptFullName, "\") - 1)
 appDir  = Left(appDir, InStrRev(appDir, "\") - 1)   ' go up one level (scripts\ -> app root)
 
