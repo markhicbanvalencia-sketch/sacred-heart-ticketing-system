@@ -28,11 +28,15 @@ function saveVersion(sha, version) {
 }
 
 // Follow redirects; returns { statusCode, headers, body }
-function httpsGet(url, binary = false) {
+// timeoutMs is an IDLE timeout (resets on any socket activity), not a total
+// duration cap — a slow-but-still-moving download won't get killed early,
+// but a connection that stalls (blocked/intercepted by a firewall, etc.)
+// fails fast with a clear error instead of hanging forever.
+function httpsGet(url, binary = false, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'SacredHeartMIS/1.0' } }, res => {
+    const req = https.get(url, { headers: { 'User-Agent': 'SacredHeartMIS/1.0' } }, res => {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
-        return httpsGet(res.headers.location, binary).then(resolve).catch(reject);
+        return httpsGet(res.headers.location, binary, timeoutMs).then(resolve).catch(reject);
       }
       const chunks = [];
       res.on('data', c => chunks.push(c));
@@ -41,7 +45,12 @@ function httpsGet(url, binary = false) {
         headers: res.headers,
         body: binary ? Buffer.concat(chunks) : Buffer.concat(chunks).toString('utf8'),
       }));
-    }).on('error', reject);
+      res.on('error', reject);
+    });
+    req.setTimeout(timeoutMs, () => {
+      req.destroy(new Error(`Connection to GitHub stalled for ${Math.round(timeoutMs / 1000)}s — check this PC's internet connection or firewall/antivirus settings.`));
+    });
+    req.on('error', reject);
   });
 }
 
@@ -87,8 +96,8 @@ router.post('/apply', requireRole('admin'), async (req, res) => {
   const tmpDir = path.join(os.tmpdir(), `sacred-heart-update-${Date.now()}`);
 
   try {
-    // 1. Download ZIP from GitHub
-    const r = await httpsGet(`https://api.github.com/repos/${REPO}/zipball/main`, true);
+    // 1. Download ZIP from GitHub (larger idle timeout — it's a bigger transfer)
+    const r = await httpsGet(`https://api.github.com/repos/${REPO}/zipball/main`, true, 45000);
     if (r.statusCode !== 200) throw new Error(`Download failed: HTTP ${r.statusCode}`);
     fs.writeFileSync(tmpZip, r.body);
 

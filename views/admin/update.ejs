@@ -68,11 +68,14 @@
     </form>
   </div>
 
+  <p id="downloadStatus" class="muted small" style="margin-top:12px;"></p>
+
   <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:.85rem;color:var(--text-muted);">
     <strong>What happens when you update?</strong><br>
     The server downloads the latest code from GitHub, replaces the application files, and
-    automatically restarts. The database and uploaded files are never touched. The process
-    takes about 15–30 seconds — the page will reload when the server is back up.
+    automatically restarts. The database and uploaded files are never touched. The download
+    normally takes 15–30 seconds; if this PC's internet or firewall is blocking GitHub, it
+    will now fail with an error within about a minute instead of hanging indefinitely.
   </div>
 </div>
 
@@ -81,6 +84,17 @@ function confirmUpdate(btn) {
   if (!confirm('Apply the update now?\n\nThe server will restart automatically. This takes ~20 seconds.')) return false;
   btn.disabled = true;
   btn.textContent = 'Downloading...';
+
+  const statusEl = document.getElementById('downloadStatus');
+  const startedAt = Date.now();
+  const iv = setInterval(() => {
+    const secs = Math.round((Date.now() - startedAt) / 1000);
+    statusEl.textContent = secs < 20
+      ? `Downloading update from GitHub… (${secs}s)`
+      : `Still working… (${secs}s) — if this passes a minute, the connection to GitHub is likely blocked; the page will show an error shortly.`;
+  }, 1000);
+  window.addEventListener('beforeunload', () => clearInterval(iv));
+
   return true;
 }
 </script>
