@@ -127,7 +127,10 @@ function confirmUpdate(btn) {
       const secs = Math.round((Date.now() - startedAt) / 1000);
       statusEl.textContent = secs < 20
         ? `Downloading update from GitHub… (${secs}s)`
-        : `Still working… (${secs}s) — if this passes a minute, the connection to GitHub is likely blocked; try Manual Update below instead.`;
+        : secs < 60
+        ? `Still working… (${secs}s) — copying files can take a while if security software is scanning them.`
+        : `Still working… (${secs}s) — this can take up to 4 minutes if security software is scanning ` +
+          `slowly. If it errors out, try Manual Update below instead.`;
     }, 1000);
     window.addEventListener('beforeunload', () => clearInterval(iv));
   }, 0);

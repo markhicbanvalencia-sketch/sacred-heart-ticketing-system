@@ -174,18 +174,24 @@ async function extractZip(zipPath, destDir) {
   }
 }
 
-// Retries an fs operation a few times with backoff when it fails with EPERM
-// or EBUSY — Windows antivirus/EDR products commonly hold a brief lock on a
-// file while scanning it (confirmed here: overwriting src/db/database.js,
-// the live app's own currently-loaded module, failed this way), and that
-// lock almost always clears within a second or two.
-async function withRetry(fn, { retries = 6, delayMs = 250 } = {}) {
+// Retries an fs operation with backoff when it fails with EPERM or EBUSY —
+// Windows antivirus/EDR products commonly hold a lock on a file while
+// scanning it (confirmed here: overwriting src/db/database.js, the live
+// app's own currently-loaded module, failed this way — and NOT because the
+// requiring process itself holds any OS-level lock on it; verified
+// separately that Node doesn't do that). A quick 6-attempt/~5s budget
+// wasn't enough on this network, consistent with the slow, cloud-lookup-
+// style scanning we've already seen elsewhere here — so this budget is
+// deliberately generous (up to ~45s) rather than guessed tightly.
+async function withRetry(fn, { retries = 18, delayMs = 250, maxDelayMs = 3000, label = '' } = {}) {
   for (let attempt = 0; ; attempt++) {
     try {
       return await fn();
     } catch (e) {
       if ((e.code !== 'EPERM' && e.code !== 'EBUSY') || attempt >= retries) throw e;
-      await new Promise(r => setTimeout(r, delayMs * (attempt + 1)));
+      const wait = Math.min(delayMs * (attempt + 1), maxDelayMs);
+      console.error(`[update] ${label || 'fs op'} got ${e.code} on attempt ${attempt + 1}/${retries + 1} (${e.path || ''}), retrying in ${wait}ms`);
+      await new Promise(r => setTimeout(r, wait));
     }
   }
 }
@@ -228,14 +234,14 @@ async function extractAndApplyZip(zipPath, { sha = null } = {}) {
       const src  = path.join(zipRoot, dir);
       const dest = path.join(APP_DIR, dir);
       if (fs.existsSync(src)) {
-        await withRetry(() => fs.promises.cp(src, dest, { recursive: true, force: true }));
+        await withRetry(() => fs.promises.cp(src, dest, { recursive: true, force: true }), { label: `copy ${dir}/` });
       }
     }
 
     // Copy package.json so we know if deps changed
     const newPkg = path.join(zipRoot, 'package.json');
     if (fs.existsSync(newPkg)) {
-      await withRetry(() => fs.promises.copyFile(newPkg, path.join(APP_DIR, 'package.json')));
+      await withRetry(() => fs.promises.copyFile(newPkg, path.join(APP_DIR, 'package.json')), { label: 'copy package.json' });
     }
 
     // Save version record
@@ -303,10 +309,10 @@ router.post('/apply', requireRole('admin'), async (req, res) => {
 
     await withTimeout(
       extractAndApplyZip(tmpZip, { sha }),
-      90000,
-      'Applying the update timed out after 90s — this can happen if antivirus/security software ' +
-      'is scanning the file very slowly. Wait a minute and try again; if it keeps happening, try ' +
-      'the Manual Update option below instead.'
+      240000,
+      'Applying the update timed out after 4 minutes — this can happen if antivirus/security ' +
+      'software is scanning the files very slowly. Wait a bit and try again; if it keeps ' +
+      'happening, try the Manual Update option below instead.'
     );
 
     // Schedule restart (give the response time to reach the browser)
@@ -340,10 +346,10 @@ router.post('/apply-local', requireRole('admin'), async (req, res) => {
   try {
     await withTimeout(
       extractAndApplyZip(zipPath, { sha: null }),
-      90000,
-      'Applying the update timed out after 90s — this can happen if antivirus/security software ' +
-      'is scanning the downloaded file very slowly. Try right-clicking the ZIP in your Downloads ' +
-      'folder → Properties → check "Unblock" → OK, then click Apply again.'
+      240000,
+      'Applying the update timed out after 4 minutes — this can happen if antivirus/security ' +
+      'software is scanning the downloaded file very slowly. Try right-clicking the ZIP in your ' +
+      'Downloads folder → Properties → check "Unblock" → OK, then click Apply again.'
     );
 
     // Mark the ZIP as used so re-clicking Apply doesn't silently reapply a stale file
