@@ -35,7 +35,13 @@ self.addEventListener('fetch', e => {
     e.respondWith(
       caches.match(request).then(cached => {
         const network = fetch(request).then(res => {
-          if (res.ok) caches.open(CACHE).then(c => c.put(request, res.clone()));
+          // Clone synchronously, before `res`'s body is touched anywhere else —
+          // a Response can only be read once, and caches.open() below resolves
+          // asynchronously, so cloning inside its .then() risks racing against
+          // the caller (e.g. the browser rendering this resource) already having
+          // started consuming the original body.
+          const toCache = res.ok ? res.clone() : null;
+          if (toCache) caches.open(CACHE).then(c => c.put(request, toCache)).catch(() => {});
           return res;
         });
         return cached || network;

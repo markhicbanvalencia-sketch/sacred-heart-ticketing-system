@@ -91,6 +91,16 @@ function findDownloadedZip() {
   return matches[0] ? matches[0].full : null;
 }
 
+// Best-effort: strip Windows' "Mark of the Web" (the Zone.Identifier
+// alternate data stream a browser tags downloaded files with). Some
+// antivirus/EDR products do a slow, blocking scan the first time anything
+// reads the *contents* of a MOTW-tagged file — harmless for a browser (which
+// waits on it natively) but capable of stalling a plain fs.readFile for a
+// long time. Removing the tag before we touch the file avoids triggering it.
+async function unblockFile(filePath) {
+  try { await fs.promises.unlink(filePath + ':Zone.Identifier'); } catch {}
+}
+
 // Extract a ZIP file entirely in-process using Node's built-in zlib — no
 // external process (PowerShell, tar, etc.) is spawned. That matters here:
 // spawning powershell.exe depends on it being resolvable on whatever PATH the
@@ -98,8 +108,15 @@ function findDownloadedZip() {
 // boot vs. an interactive terminal), and on some locked-down machines
 // spawning powershell.exe is itself intercepted/delayed by security software.
 // Doing the extraction as plain buffer math sidesteps all of that.
-function extractZipSync(zipPath, destDir) {
-  const buf = fs.readFileSync(zipPath);
+//
+// Uses async fs calls throughout (not *Sync). This isn't about speed — it's
+// so a wrapping timeout can actually fire: a *Sync call blocks the entire
+// Node event loop, including any setTimeout, until it returns, so if the
+// underlying disk read itself stalls (e.g. antivirus holding the file open
+// mid-scan) a Sync version would freeze the whole process with no way out.
+async function extractZip(zipPath, destDir) {
+  await unblockFile(zipPath);
+  const buf = await fs.promises.readFile(zipPath);
 
   // Locate the End Of Central Directory record by scanning backward for its
   // signature (a trailing comment of arbitrary length can follow it).
@@ -136,11 +153,11 @@ function extractZipSync(zipPath, destDir) {
     if (!destPath.startsWith(destRoot)) throw new Error(`Unsafe path in ZIP entry: ${filename}`);
 
     if (filename.endsWith('/')) {
-      fs.mkdirSync(destPath, { recursive: true });
+      await fs.promises.mkdir(destPath, { recursive: true });
       continue;
     }
 
-    fs.mkdirSync(path.dirname(destPath), { recursive: true });
+    await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
 
     if (buf.readUInt32LE(localHeaderOffset) !== LFH_SIG) throw new Error(`Corrupt ZIP local header for ${filename}.`);
     const lfhNameLen  = buf.readUInt16LE(localHeaderOffset + 26);
@@ -150,11 +167,22 @@ function extractZipSync(zipPath, destDir) {
 
     let fileData;
     if (compressionMethod === 0) fileData = compressedData;               // stored
-    else if (compressionMethod === 8) fileData = zlib.inflateRawSync(compressedData); // deflate
+    else if (compressionMethod === 8) fileData = zlib.inflateRawSync(compressedData); // deflate (pure CPU, no I/O — fine sync)
     else throw new Error(`Unsupported ZIP compression method ${compressionMethod} for ${filename}.`);
 
-    fs.writeFileSync(destPath, fileData);
+    await fs.promises.writeFile(destPath, fileData);
   }
+}
+
+// Races a promise against a hard timeout. Doesn't cancel the underlying work
+// (Node can't forcibly abort an in-flight fs call) — it just guarantees the
+// *caller* gets a response either way, instead of hanging indefinitely.
+function withTimeout(promise, ms, message) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 // Shared by both update paths: extract an already-downloaded ZIP (local disk,
@@ -162,41 +190,41 @@ function extractZipSync(zipPath, destDir) {
 // Resolves with the version string written to the version record.
 async function extractAndApplyZip(zipPath, { sha = null } = {}) {
   const tmpDir = path.join(os.tmpdir(), `sacred-heart-update-${Date.now()}`);
-  fs.mkdirSync(tmpDir, { recursive: true });
-  extractZipSync(zipPath, tmpDir);
+  await fs.promises.mkdir(tmpDir, { recursive: true });
+  await extractZip(zipPath, tmpDir);
 
   try {
-    // 2. Find the root folder inside the ZIP (GitHub names it owner-repo-sha/
-    //    or repo-branch/ depending on which endpoint produced it)
-    const entries = fs.readdirSync(tmpDir);
+    // Find the root folder inside the ZIP (GitHub names it owner-repo-sha/
+    // or repo-branch/ depending on which endpoint produced it)
+    const entries = await fs.promises.readdir(tmpDir);
     if (!entries.length) throw new Error('ZIP was empty or could not be extracted.');
     const zipRoot = path.join(tmpDir, entries[0]);
 
-    // 3. Get version from package.json in extracted ZIP
+    // Get version from package.json in extracted ZIP
     let newVersion = '1.x';
     try {
-      const pkg = JSON.parse(fs.readFileSync(path.join(zipRoot, 'package.json'), 'utf8'));
+      const pkg = JSON.parse(await fs.promises.readFile(path.join(zipRoot, 'package.json'), 'utf8'));
       newVersion = pkg.version || newVersion;
     } catch {}
 
-    // 4. Copy updated dirs over the installed app (overwrite in-place)
+    // Copy updated dirs over the installed app (overwrite in-place)
     for (const dir of UPDATE_DIRS) {
       const src  = path.join(zipRoot, dir);
       const dest = path.join(APP_DIR, dir);
       if (fs.existsSync(src)) {
-        fs.cpSync(src, dest, { recursive: true, force: true });
+        await fs.promises.cp(src, dest, { recursive: true, force: true });
       }
     }
 
-    // 5. Copy package.json so we know if deps changed
+    // Copy package.json so we know if deps changed
     const newPkg = path.join(zipRoot, 'package.json');
-    if (fs.existsSync(newPkg)) fs.copyFileSync(newPkg, path.join(APP_DIR, 'package.json'));
+    if (fs.existsSync(newPkg)) await fs.promises.copyFile(newPkg, path.join(APP_DIR, 'package.json'));
 
-    // 6. Save version record
+    // Save version record
     saveVersion(sha, newVersion);
     return newVersion;
   } finally {
-    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
   }
 }
 
@@ -255,7 +283,13 @@ router.post('/apply', requireRole('admin'), async (req, res) => {
       if (cr.statusCode === 200) sha = JSON.parse(cr.body).sha;
     } catch {}
 
-    await extractAndApplyZip(tmpZip, { sha });
+    await withTimeout(
+      extractAndApplyZip(tmpZip, { sha }),
+      90000,
+      'Applying the update timed out after 90s — this can happen if antivirus/security software ' +
+      'is scanning the file very slowly. Wait a minute and try again; if it keeps happening, try ' +
+      'the Manual Update option below instead.'
+    );
 
     // Schedule restart (give the response time to reach the browser)
     setTimeout(() => process.exit(0), 1500);
@@ -286,7 +320,13 @@ router.post('/apply-local', requireRole('admin'), async (req, res) => {
   }
 
   try {
-    await extractAndApplyZip(zipPath, { sha: null });
+    await withTimeout(
+      extractAndApplyZip(zipPath, { sha: null }),
+      90000,
+      'Applying the update timed out after 90s — this can happen if antivirus/security software ' +
+      'is scanning the downloaded file very slowly. Try right-clicking the ZIP in your Downloads ' +
+      'folder → Properties → check "Unblock" → OK, then click Apply again.'
+    );
 
     // Mark the ZIP as used so re-clicking Apply doesn't silently reapply a stale file
     try { fs.renameSync(zipPath, zipPath + '.applied'); } catch {}
