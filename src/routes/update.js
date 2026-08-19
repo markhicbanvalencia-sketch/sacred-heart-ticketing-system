@@ -28,29 +28,47 @@ function saveVersion(sha, version) {
 }
 
 // Follow redirects; returns { statusCode, headers, body }
-// timeoutMs is an IDLE timeout (resets on any socket activity), not a total
-// duration cap — a slow-but-still-moving download won't get killed early,
-// but a connection that stalls (blocked/intercepted by a firewall, etc.)
-// fails fast with a clear error instead of hanging forever.
+// timeoutMs is an IDLE timeout (resets on every chunk received), not a total
+// duration cap — a slow-but-still-moving download won't get killed early.
+// Uses a plain JS timer (not req.setTimeout/socket timeout) because Node only
+// arms a socket-level timeout AFTER the socket connects — a request that never
+// connects at all (DNS never resolving, or a firewall silently dropping the
+// outbound TCP handshake instead of rejecting it) would never trip that timer
+// and would hang forever with no error. A plain timer starts counting the
+// instant the request is issued, so it catches a stall in any phase.
 function httpsGet(url, binary = false, timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
+    let timer;
+    const fail = (err) => { clearTimeout(timer); reject(err); };
+
     const req = https.get(url, { headers: { 'User-Agent': 'SacredHeartMIS/1.0' } }, res => {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+        clearTimeout(timer);
         return httpsGet(res.headers.location, binary, timeoutMs).then(resolve).catch(reject);
       }
       const chunks = [];
-      res.on('data', c => chunks.push(c));
-      res.on('end', () => resolve({
-        statusCode: res.statusCode,
-        headers: res.headers,
-        body: binary ? Buffer.concat(chunks) : Buffer.concat(chunks).toString('utf8'),
-      }));
-      res.on('error', reject);
+      res.on('data', c => { chunks.push(c); timer.refresh(); });
+      res.on('end', () => {
+        clearTimeout(timer);
+        resolve({
+          statusCode: res.statusCode,
+          headers: res.headers,
+          body: binary ? Buffer.concat(chunks) : Buffer.concat(chunks).toString('utf8'),
+        });
+      });
+      res.on('error', fail);
     });
-    req.setTimeout(timeoutMs, () => {
-      req.destroy(new Error(`Connection to GitHub stalled for ${Math.round(timeoutMs / 1000)}s — check this PC's internet connection or firewall/antivirus settings.`));
-    });
-    req.on('error', reject);
+
+    timer = setTimeout(() => {
+      req.destroy(new Error(
+        `Connection to GitHub stalled for ${Math.round(timeoutMs / 1000)}s with no response — ` +
+        `this usually means a firewall or antivirus is silently blocking outbound HTTPS from node.exe ` +
+        `(even if your browser can reach github.com fine, browsers and Node use separate network paths/proxy ` +
+        `settings). Check firewall/antivirus rules for node.exe, or any proxy settings this network requires.`
+      ));
+    }, timeoutMs);
+
+    req.on('error', fail);
   });
 }
 
