@@ -59,7 +59,7 @@
     <% if (!upToDate && !error && latestSHA) { %>
       <form method="POST" action="/admin/update/apply" id="updateForm">
         <button type="submit" class="btn btn-primary" onclick="return confirmUpdate(this)">
-          &#8595; Download &amp; Apply Update
+          &#8595; Download &amp; Apply Update (Automatic)
         </button>
       </form>
     <% } %>
@@ -70,12 +70,41 @@
 
   <p id="downloadStatus" class="muted small" style="margin-top:12px;"></p>
 
+  <div style="margin-top:12px;font-size:.85rem;color:var(--text-muted);">
+    Automatic update needs this PC's Node.js process to reach GitHub directly. On some
+    networks that's blocked even though a browser can reach GitHub fine — if the button
+    above fails or hangs, use Manual Update below instead.
+  </div>
+
+  <div style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border);">
+    <h3 style="margin:0 0 4px;">Manual Update</h3>
+    <p class="muted small" style="margin:0 0 16px;">
+      Downloads through your browser instead of the server — use this if Automatic Update
+      above doesn't work on this network.
+    </p>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <a href="/admin/update/download-link" target="_blank" class="btn btn-secondary" id="manualDownloadBtn">
+        1. Download Update ZIP
+      </a>
+      <form method="POST" action="/admin/update/apply-local" id="applyLocalForm">
+        <button type="submit" class="btn btn-primary" onclick="return confirmApplyLocal(this)">
+          2. Apply Downloaded Update
+        </button>
+      </form>
+    </div>
+
+    <div style="margin-top:12px;font-size:.85rem;color:var(--text-muted);">
+      Step 1 opens a normal browser download (saves to your Downloads folder) — wait for it
+      to finish. Step 2 reads that file directly off this PC's disk, so it doesn't need any
+      network access itself. The server restarts automatically afterward.
+    </div>
+  </div>
+
   <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border);font-size:.85rem;color:var(--text-muted);">
     <strong>What happens when you update?</strong><br>
-    The server downloads the latest code from GitHub, replaces the application files, and
-    automatically restarts. The database and uploaded files are never touched. The download
-    normally takes 15–30 seconds; if this PC's internet or firewall is blocking GitHub, it
-    will now fail with an error within about a minute instead of hanging indefinitely.
+    Either path replaces the application files with the latest code from GitHub and
+    restarts the server automatically. The database and uploaded files are never touched.
   </div>
 </div>
 
@@ -91,10 +120,17 @@ function confirmUpdate(btn) {
     const secs = Math.round((Date.now() - startedAt) / 1000);
     statusEl.textContent = secs < 20
       ? `Downloading update from GitHub… (${secs}s)`
-      : `Still working… (${secs}s) — if this passes a minute, the connection to GitHub is likely blocked; the page will show an error shortly.`;
+      : `Still working… (${secs}s) — if this passes a minute, the connection to GitHub is likely blocked; try Manual Update below instead.`;
   }, 1000);
   window.addEventListener('beforeunload', () => clearInterval(iv));
 
+  return true;
+}
+
+function confirmApplyLocal(btn) {
+  if (!confirm('Apply the downloaded update now?\n\nMake sure step 1\'s download finished first. The server will restart automatically.')) return false;
+  btn.disabled = true;
+  btn.textContent = 'Applying...';
   return true;
 }
 </script>

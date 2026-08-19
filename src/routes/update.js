@@ -3,13 +3,17 @@ const https    = require('https');
 const fs       = require('fs');
 const path     = require('path');
 const os       = require('os');
-const { exec } = require('child_process');
+const zlib     = require('zlib');
 const { requireRole, setFlash } = require('../middleware/auth');
 
 const router  = express.Router();
 const REPO    = 'markhicbanvalencia-sketch/sacred-heart-ticketing-system';
 const APP_DIR = path.join(__dirname, '..', '..');
 const VERSION_FILE = path.join(APP_DIR, 'data', 'version.json');
+const BRANCH_ZIP_URL = `https://github.com/${REPO}/archive/refs/heads/main.zip`;
+// GitHub names a branch-archive download "{repo}-{branch}.zip" — this is what
+// a plain browser click on BRANCH_ZIP_URL saves into the Downloads folder.
+const DOWNLOADED_ZIP_PATTERN = /^sacred-heart-ticketing-system-main(\s*\(\d+\))?\.zip$/i;
 
 // Folders copied from the downloaded ZIP into the app directory
 const UPDATE_DIRS = ['src', 'views', 'public', 'installer'];
@@ -72,6 +76,130 @@ function httpsGet(url, binary = false, timeoutMs = 30000) {
   });
 }
 
+// Find the most recently downloaded update ZIP in the current user's Downloads
+// folder (Chrome/Edge append " (1)", " (2)", etc. on repeat downloads).
+function findDownloadedZip() {
+  const dir = path.join(os.homedir(), 'Downloads');
+  if (!fs.existsSync(dir)) return null;
+  const matches = fs.readdirSync(dir)
+    .filter(f => DOWNLOADED_ZIP_PATTERN.test(f))
+    .map(f => {
+      const full = path.join(dir, f);
+      return { full, mtimeMs: fs.statSync(full).mtimeMs };
+    })
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  return matches[0] ? matches[0].full : null;
+}
+
+// Extract a ZIP file entirely in-process using Node's built-in zlib — no
+// external process (PowerShell, tar, etc.) is spawned. That matters here:
+// spawning powershell.exe depends on it being resolvable on whatever PATH the
+// Node process inherited (which can differ for a process launched silently at
+// boot vs. an interactive terminal), and on some locked-down machines
+// spawning powershell.exe is itself intercepted/delayed by security software.
+// Doing the extraction as plain buffer math sidesteps all of that.
+function extractZipSync(zipPath, destDir) {
+  const buf = fs.readFileSync(zipPath);
+
+  // Locate the End Of Central Directory record by scanning backward for its
+  // signature (a trailing comment of arbitrary length can follow it).
+  const EOCD_SIG = 0x06054b50;
+  const maxCommentLen = 65535;
+  const searchStart = Math.max(0, buf.length - 22 - maxCommentLen);
+  let eocdOffset = -1;
+  for (let i = buf.length - 22; i >= searchStart; i--) {
+    if (buf.readUInt32LE(i) === EOCD_SIG) { eocdOffset = i; break; }
+  }
+  if (eocdOffset === -1) throw new Error('Not a valid ZIP file (no End Of Central Directory record found).');
+
+  const entryCount = buf.readUInt16LE(eocdOffset + 10);
+  let offset        = buf.readUInt32LE(eocdOffset + 16); // central directory offset
+
+  const CD_SIG  = 0x02014b50;
+  const LFH_SIG = 0x04034b50;
+  const destRoot = path.normalize(destDir + path.sep);
+
+  for (let i = 0; i < entryCount; i++) {
+    if (buf.readUInt32LE(offset) !== CD_SIG) throw new Error('Corrupt ZIP central directory.');
+
+    const compressionMethod = buf.readUInt16LE(offset + 10);
+    const compressedSize    = buf.readUInt32LE(offset + 20);
+    const filenameLength    = buf.readUInt16LE(offset + 28);
+    const extraFieldLength  = buf.readUInt16LE(offset + 30);
+    const commentLength     = buf.readUInt16LE(offset + 32);
+    const localHeaderOffset = buf.readUInt32LE(offset + 42);
+    const filename = buf.toString('utf8', offset + 46, offset + 46 + filenameLength);
+
+    offset += 46 + filenameLength + extraFieldLength + commentLength;
+
+    const destPath = path.join(destDir, filename);
+    if (!destPath.startsWith(destRoot)) throw new Error(`Unsafe path in ZIP entry: ${filename}`);
+
+    if (filename.endsWith('/')) {
+      fs.mkdirSync(destPath, { recursive: true });
+      continue;
+    }
+
+    fs.mkdirSync(path.dirname(destPath), { recursive: true });
+
+    if (buf.readUInt32LE(localHeaderOffset) !== LFH_SIG) throw new Error(`Corrupt ZIP local header for ${filename}.`);
+    const lfhNameLen  = buf.readUInt16LE(localHeaderOffset + 26);
+    const lfhExtraLen = buf.readUInt16LE(localHeaderOffset + 28);
+    const dataStart   = localHeaderOffset + 30 + lfhNameLen + lfhExtraLen;
+    const compressedData = buf.subarray(dataStart, dataStart + compressedSize);
+
+    let fileData;
+    if (compressionMethod === 0) fileData = compressedData;               // stored
+    else if (compressionMethod === 8) fileData = zlib.inflateRawSync(compressedData); // deflate
+    else throw new Error(`Unsupported ZIP compression method ${compressionMethod} for ${filename}.`);
+
+    fs.writeFileSync(destPath, fileData);
+  }
+}
+
+// Shared by both update paths: extract an already-downloaded ZIP (local disk,
+// no network) and copy the updated folders over the installed app in-place.
+// Resolves with the version string written to the version record.
+async function extractAndApplyZip(zipPath, { sha = null } = {}) {
+  const tmpDir = path.join(os.tmpdir(), `sacred-heart-update-${Date.now()}`);
+  fs.mkdirSync(tmpDir, { recursive: true });
+  extractZipSync(zipPath, tmpDir);
+
+  try {
+    // 2. Find the root folder inside the ZIP (GitHub names it owner-repo-sha/
+    //    or repo-branch/ depending on which endpoint produced it)
+    const entries = fs.readdirSync(tmpDir);
+    if (!entries.length) throw new Error('ZIP was empty or could not be extracted.');
+    const zipRoot = path.join(tmpDir, entries[0]);
+
+    // 3. Get version from package.json in extracted ZIP
+    let newVersion = '1.x';
+    try {
+      const pkg = JSON.parse(fs.readFileSync(path.join(zipRoot, 'package.json'), 'utf8'));
+      newVersion = pkg.version || newVersion;
+    } catch {}
+
+    // 4. Copy updated dirs over the installed app (overwrite in-place)
+    for (const dir of UPDATE_DIRS) {
+      const src  = path.join(zipRoot, dir);
+      const dest = path.join(APP_DIR, dir);
+      if (fs.existsSync(src)) {
+        fs.cpSync(src, dest, { recursive: true, force: true });
+      }
+    }
+
+    // 5. Copy package.json so we know if deps changed
+    const newPkg = path.join(zipRoot, 'package.json');
+    if (fs.existsSync(newPkg)) fs.copyFileSync(newPkg, path.join(APP_DIR, 'package.json'));
+
+    // 6. Save version record
+    saveVersion(sha, newVersion);
+    return newVersion;
+  } finally {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+  }
+}
+
 // ── Routes ────────────────────────────────────────────────────────────────────
 
 // GET /admin/update  — show current vs latest version
@@ -108,80 +236,75 @@ router.get('/', requireRole('admin'), async (req, res) => {
   });
 });
 
-// POST /admin/update/apply  — download latest ZIP and replace source files
+// POST /admin/update/apply  — download latest ZIP over the network and apply it
+// (requires Node's own outbound HTTPS to reach GitHub — see /apply-local for a
+// fallback that only needs the browser to have downloaded the ZIP already)
 router.post('/apply', requireRole('admin'), async (req, res) => {
   const tmpZip = path.join(os.tmpdir(), `sacred-heart-update-${Date.now()}.zip`);
-  const tmpDir = path.join(os.tmpdir(), `sacred-heart-update-${Date.now()}`);
 
   try {
-    // 1. Download ZIP from GitHub (larger idle timeout — it's a bigger transfer)
+    // Download ZIP from GitHub (larger idle timeout — it's a bigger transfer)
     const r = await httpsGet(`https://api.github.com/repos/${REPO}/zipball/main`, true, 45000);
     if (r.statusCode !== 200) throw new Error(`Download failed: HTTP ${r.statusCode}`);
     fs.writeFileSync(tmpZip, r.body);
 
-    // 2. Extract ZIP using PowerShell (built-in on Windows 10+)
-    await new Promise((resolve, reject) => {
-      exec(
-        `powershell -NoProfile -Command "Expand-Archive -LiteralPath '${tmpZip}' -DestinationPath '${tmpDir}' -Force"`,
-        { timeout: 60000 },
-        (err, _stdout, stderr) => {
-          if (err) reject(new Error(stderr || err.message));
-          else resolve();
-        }
-      );
-    });
-
-    // 3. Find the root folder inside the ZIP (GitHub names it owner-repo-sha/)
-    const entries = fs.readdirSync(tmpDir);
-    if (!entries.length) throw new Error('ZIP was empty or could not be extracted.');
-    const zipRoot = path.join(tmpDir, entries[0]);
-
-    // 4. Get latest commit SHA from package.json in extracted ZIP
-    let newVersion = '1.x';
-    try {
-      const pkg = JSON.parse(fs.readFileSync(path.join(zipRoot, 'package.json'), 'utf8'));
-      newVersion = pkg.version || newVersion;
-    } catch {}
-
-    // 5. Copy updated dirs over the installed app (overwrite in-place)
-    for (const dir of UPDATE_DIRS) {
-      const src  = path.join(zipRoot, dir);
-      const dest = path.join(APP_DIR, dir);
-      if (fs.existsSync(src)) {
-        fs.cpSync(src, dest, { recursive: true, force: true });
-      }
-    }
-
-    // 6. Copy package.json so we know if deps changed
-    const newPkg = path.join(zipRoot, 'package.json');
-    if (fs.existsSync(newPkg)) fs.copyFileSync(newPkg, path.join(APP_DIR, 'package.json'));
-
-    // 7. Get the actual SHA from the GitHub API
+    // Best-effort: resolve the real commit SHA (cosmetic only — never blocks the update)
     let sha = null;
     try {
-      const cr = await httpsGet(`https://api.github.com/repos/${REPO}/commits/main`);
+      const cr = await httpsGet(`https://api.github.com/repos/${REPO}/commits/main`, false, 10000);
       if (cr.statusCode === 200) sha = JSON.parse(cr.body).sha;
     } catch {}
 
-    // 8. Save version record
-    saveVersion(sha, newVersion);
+    await extractAndApplyZip(tmpZip, { sha });
 
-    // 9. Schedule restart (give the response time to reach the browser)
+    // Schedule restart (give the response time to reach the browser)
     setTimeout(() => process.exit(0), 1500);
-
-    res.render('admin/update-applying', {
-      title: 'Applying Update...',
-      flash: null,
-    });
+    res.render('admin/update-applying', { title: 'Applying Update...', flash: null });
 
   } catch (e) {
-    // Clean up temp files on error
-    try { fs.unlinkSync(tmpZip); }  catch {}
-    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    console.error('[update/apply] failed:', e);
+    setFlash(req, 'error', `Update failed: ${e.message}`);
+    res.redirect('/admin/update');
+  } finally {
+    try { fs.unlinkSync(tmpZip); } catch {}
+  }
+});
 
+// POST /admin/update/apply-local  — apply a ZIP the browser already downloaded
+// to this PC's Downloads folder. No network call from Node at all: the browser
+// did the download (via GET /admin/update/download-link), so this only touches
+// local disk — a fallback for networks where Node's own outbound HTTPS to
+// GitHub doesn't work even though the browser can reach it fine.
+router.post('/apply-local', requireRole('admin'), async (req, res) => {
+  const zipPath = findDownloadedZip();
+
+  if (!zipPath) {
+    setFlash(req, 'error',
+      `No downloaded update ZIP found in your Downloads folder. Click "1. Download Update ZIP" ` +
+      `below first, wait for it to finish, then click Apply.`);
+    return res.redirect('/admin/update');
+  }
+
+  try {
+    await extractAndApplyZip(zipPath, { sha: null });
+
+    // Mark the ZIP as used so re-clicking Apply doesn't silently reapply a stale file
+    try { fs.renameSync(zipPath, zipPath + '.applied'); } catch {}
+
+    setTimeout(() => process.exit(0), 1500);
+    res.render('admin/update-applying', { title: 'Applying Update...', flash: null });
+
+  } catch (e) {
+    console.error('[update/apply-local] failed:', e);
     setFlash(req, 'error', `Update failed: ${e.message}`);
     res.redirect('/admin/update');
   }
+});
+
+// GET /admin/update/download-link  — redirects to the GitHub branch ZIP so the
+// browser downloads it directly (bypasses Node's outbound HTTPS entirely)
+router.get('/download-link', requireRole('admin'), (req, res) => {
+  res.redirect(BRANCH_ZIP_URL);
 });
 
 module.exports = router;
