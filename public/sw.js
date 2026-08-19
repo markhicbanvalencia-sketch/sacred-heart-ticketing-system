@@ -50,13 +50,14 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // File-download links (e.g. the System Update ZIP) — never proxy these.
-  // A download is still technically a "navigate"-mode request, but routing it
-  // through the service worker's own fetch() here means TWO fetches end up
-  // racing for the same download (the browser's native one and this proxy),
-  // and the browser can cancel the file mid-transfer as a result. Let it
-  // through untouched so the browser's own download manager handles it.
-  if (url.pathname.startsWith('/admin/update/download')) return;
+  // The whole System Update flow — never proxy any of it. Both the ZIP
+  // download and the apply POSTs' redirects are "navigate"-mode requests;
+  // routing them through the service worker's own fetch() here means TWO
+  // fetches end up racing for the same request (the browser's native one and
+  // this proxy), and the browser can cancel one of them as a result. This
+  // page needs live connectivity anyway (it's admin-only and about to
+  // restart the server), so there's no offline-fallback benefit to give up.
+  if (url.pathname.startsWith('/admin/update')) return;
 
   // Page navigation: network-first, fall back to offline page
   if (request.mode === 'navigate') {

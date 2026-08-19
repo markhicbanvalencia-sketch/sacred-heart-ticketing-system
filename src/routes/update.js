@@ -174,6 +174,22 @@ async function extractZip(zipPath, destDir) {
   }
 }
 
+// Retries an fs operation a few times with backoff when it fails with EPERM
+// or EBUSY — Windows antivirus/EDR products commonly hold a brief lock on a
+// file while scanning it (confirmed here: overwriting src/db/database.js,
+// the live app's own currently-loaded module, failed this way), and that
+// lock almost always clears within a second or two.
+async function withRetry(fn, { retries = 6, delayMs = 250 } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if ((e.code !== 'EPERM' && e.code !== 'EBUSY') || attempt >= retries) throw e;
+      await new Promise(r => setTimeout(r, delayMs * (attempt + 1)));
+    }
+  }
+}
+
 // Races a promise against a hard timeout. Doesn't cancel the underlying work
 // (Node can't forcibly abort an in-flight fs call) — it just guarantees the
 // *caller* gets a response either way, instead of hanging indefinitely.
@@ -212,13 +228,15 @@ async function extractAndApplyZip(zipPath, { sha = null } = {}) {
       const src  = path.join(zipRoot, dir);
       const dest = path.join(APP_DIR, dir);
       if (fs.existsSync(src)) {
-        await fs.promises.cp(src, dest, { recursive: true, force: true });
+        await withRetry(() => fs.promises.cp(src, dest, { recursive: true, force: true }));
       }
     }
 
     // Copy package.json so we know if deps changed
     const newPkg = path.join(zipRoot, 'package.json');
-    if (fs.existsSync(newPkg)) await fs.promises.copyFile(newPkg, path.join(APP_DIR, 'package.json'));
+    if (fs.existsSync(newPkg)) {
+      await withRetry(() => fs.promises.copyFile(newPkg, path.join(APP_DIR, 'package.json')));
+    }
 
     // Save version record
     saveVersion(sha, newVersion);
