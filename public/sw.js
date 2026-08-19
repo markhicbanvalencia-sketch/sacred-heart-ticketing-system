@@ -50,6 +50,14 @@ self.addEventListener('fetch', e => {
     return;
   }
 
+  // File-download links (e.g. the System Update ZIP) — never proxy these.
+  // A download is still technically a "navigate"-mode request, but routing it
+  // through the service worker's own fetch() here means TWO fetches end up
+  // racing for the same download (the browser's native one and this proxy),
+  // and the browser can cancel the file mid-transfer as a result. Let it
+  // through untouched so the browser's own download manager handles it.
+  if (url.pathname.startsWith('/admin/update/download')) return;
+
   // Page navigation: network-first, fall back to offline page
   if (request.mode === 'navigate') {
     e.respondWith(
