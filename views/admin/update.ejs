@@ -109,28 +109,40 @@
 </div>
 
 <script>
+// Disabling a submit button *synchronously* inside its own click handler,
+// before the handler returns, can make the browser silently skip the form's
+// default submit action — the button is already disabled by the time the
+// browser gets to it. Deferring the disable with setTimeout(...,0) pushes it
+// to the next tick, after the browser has already committed to submitting.
 function confirmUpdate(btn) {
   if (!confirm('Apply the update now?\n\nThe server will restart automatically. This takes ~20 seconds.')) return false;
-  btn.disabled = true;
-  btn.textContent = 'Downloading...';
 
-  const statusEl = document.getElementById('downloadStatus');
-  const startedAt = Date.now();
-  const iv = setInterval(() => {
-    const secs = Math.round((Date.now() - startedAt) / 1000);
-    statusEl.textContent = secs < 20
-      ? `Downloading update from GitHub… (${secs}s)`
-      : `Still working… (${secs}s) — if this passes a minute, the connection to GitHub is likely blocked; try Manual Update below instead.`;
-  }, 1000);
-  window.addEventListener('beforeunload', () => clearInterval(iv));
+  setTimeout(() => {
+    btn.disabled = true;
+    btn.textContent = 'Downloading...';
+
+    const statusEl = document.getElementById('downloadStatus');
+    const startedAt = Date.now();
+    const iv = setInterval(() => {
+      const secs = Math.round((Date.now() - startedAt) / 1000);
+      statusEl.textContent = secs < 20
+        ? `Downloading update from GitHub… (${secs}s)`
+        : `Still working… (${secs}s) — if this passes a minute, the connection to GitHub is likely blocked; try Manual Update below instead.`;
+    }, 1000);
+    window.addEventListener('beforeunload', () => clearInterval(iv));
+  }, 0);
 
   return true;
 }
 
 function confirmApplyLocal(btn) {
   if (!confirm('Apply the downloaded update now?\n\nMake sure step 1\'s download finished first. The server will restart automatically.')) return false;
-  btn.disabled = true;
-  btn.textContent = 'Applying...';
+
+  setTimeout(() => {
+    btn.disabled = true;
+    btn.textContent = 'Applying...';
+  }, 0);
+
   return true;
 }
 </script>
